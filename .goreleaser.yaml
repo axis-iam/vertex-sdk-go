@@ -1,0 +1,45 @@
+version: 2
+
+project_name: iam-codegen
+
+before:
+  hooks:
+    - env GOWORK=off go mod tidy
+
+builds:
+  - id: iam-codegen
+    main: ./cmd/iam-codegen
+    binary: iam-codegen
+    env:
+      - CGO_ENABLED=0
+      - GOWORK=off
+    goos: [linux, darwin, windows]
+    goarch: [amd64, arm64]
+    ldflags:
+      - -s -w -X main.version={{ .Version }}
+
+archives:
+  - id: iam-codegen
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    format_overrides:
+      - goos: windows
+        format: zip
+
+checksum:
+  name_template: "checksums.txt"
+
+snapshot:
+  name_template: "{{ incpatch .Version }}-next"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - "^docs:"
+      - "^test:"
+      - "^chore:"
+
+release:
+  github:
+    owner: axis-iam
+    name: vertex-sdk-go

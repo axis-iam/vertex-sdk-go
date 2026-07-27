@@ -1,0 +1,38 @@
+# Build outputs
+bin/
+dist/
+build/
+coverage/
+*.out
+*.prof
+*.cover
+*.test
+*.exe
+
+# Go workspace/cache artifacts
+vendor/
+go.work.sum
+
+# Logs and local env
+*.log
+.env
+.env.*
+!.env.example
+
+# IDE/OS
+.idea/
+.vscode/
+*.iml
+.DS_Store
+Thumbs.db
+
+# Local agent and coordination material (kept on disk, excluded from public source)
+/.private-history/
+/.claude/
+/.codex/
+/AGENTS.md
+/CLAUDE.md
+/docs/PROJECT_TASKS.md
+/docs/tasks/
+/docs/plans/
+/docs/guides/

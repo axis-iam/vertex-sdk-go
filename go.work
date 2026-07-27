@@ -1,0 +1,11 @@
+go 1.23
+
+use (
+	.
+	./chi
+	./echo
+	./examples/chi-demo
+	./examples/echo-demo
+	./examples/gin-demo
+	./gin
+)
