@@ -63,7 +63,7 @@ jobs:
 
   release:
     name: release iam-codegen
-    if: ${{ github.ref == 'refs/tags/v0.1.0' }}
+    if: ${{ github.ref == 'refs/tags/v0.1.1' }}
     needs: [test, lint]
     runs-on: ubuntu-latest
     permissions:

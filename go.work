@@ -11,8 +11,8 @@ use (
 )
 
 replace (
-	github.com/axis-iam/vertex-sdk-go v0.1.0 => .
-	github.com/axis-iam/vertex-sdk-go/chi v0.1.0 => ./chi
-	github.com/axis-iam/vertex-sdk-go/echo v0.1.0 => ./echo
-	github.com/axis-iam/vertex-sdk-go/gin v0.1.0 => ./gin
+	github.com/axis-iam/vertex-sdk-go v0.1.1 => .
+	github.com/axis-iam/vertex-sdk-go/chi v0.1.1 => ./chi
+	github.com/axis-iam/vertex-sdk-go/echo v0.1.1 => ./echo
+	github.com/axis-iam/vertex-sdk-go/gin v0.1.1 => ./gin
 )

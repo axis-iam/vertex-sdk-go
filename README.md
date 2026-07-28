@@ -44,11 +44,11 @@ This Go SDK is a resource-server and management-call SDK. It does not implement 
 ## Install
 
 ```bash
-go get github.com/axis-iam/vertex-sdk-go@latest
+go get github.com/axis-iam/vertex-sdk-go@v0.1.1
 # adapter of your choice:
-go get github.com/axis-iam/vertex-sdk-go/chi@latest
-go get github.com/axis-iam/vertex-sdk-go/gin@latest
-go get github.com/axis-iam/vertex-sdk-go/echo@latest
+go get github.com/axis-iam/vertex-sdk-go/chi@v0.1.1
+go get github.com/axis-iam/vertex-sdk-go/gin@v0.1.1
+go get github.com/axis-iam/vertex-sdk-go/echo@v0.1.1
 ```
 
 ## Quick start (chi)
@@ -227,7 +227,7 @@ constants. It performs no network request and needs no credentials. Validate/ups
 server-only operation.
 
 ```bash
-go install github.com/axis-iam/vertex-sdk-go/cmd/iam-codegen@latest
+go install github.com/axis-iam/vertex-sdk-go/cmd/iam-codegen@v0.1.1
 
 # local manifest → generate Go file
 iam-codegen generate \

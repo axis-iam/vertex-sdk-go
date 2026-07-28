@@ -3,7 +3,7 @@ module github.com/axis-iam/vertex-sdk-go/gin
 go 1.23
 
 require (
-	github.com/axis-iam/vertex-sdk-go v0.1.0
+	github.com/axis-iam/vertex-sdk-go v0.1.1
 	github.com/gin-gonic/gin v1.10.0
 )
 

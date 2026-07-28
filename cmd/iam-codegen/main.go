@@ -38,7 +38,7 @@ func main() {
 	}
 }
 
-const version = "0.1.0"
+const version = "0.1.1"
 
 func usage() {
 	writeUsage(os.Stderr)

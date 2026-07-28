@@ -3,7 +3,7 @@ module github.com/axis-iam/vertex-sdk-go/chi
 go 1.23
 
 require (
-	github.com/axis-iam/vertex-sdk-go v0.1.0
+	github.com/axis-iam/vertex-sdk-go v0.1.1
 	github.com/go-chi/chi/v5 v5.2.0
 )
 
