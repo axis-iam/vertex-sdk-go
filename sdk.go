@@ -207,9 +207,9 @@ func (s *SDK) RevokeOtherAccountSessions(ctx context.Context, accessToken string
 	return s.client.RevokeOtherAccountSessions(ctx, accessToken)
 }
 
-// LogoutAccount logs out the current token/session and optionally revokes a refresh token.
-func (s *SDK) LogoutAccount(ctx context.Context, accessToken, refreshToken string) error {
-	return s.client.LogoutAccount(ctx, accessToken, refreshToken)
+// LogoutAccount logs out the current token/session and revokes its OAuth session.
+func (s *SDK) LogoutAccount(ctx context.Context, accessToken string) error {
+	return s.client.LogoutAccount(ctx, accessToken)
 }
 
 // ListAccountOrganizations lists the current user's Application-scoped Organizations.

@@ -173,7 +173,7 @@ accepted, err := sdk.AcceptOrganizationInvitation(ctx, invitationTokenFromURL, a
 
 Do not persist raw invitation tokens in durable state. Keep them URL/request scoped.
 
-`UserProfile.Metadata` is profile metadata returned by `/api/v1/auth/me`. It is not App User authorization attributes. App User authorization attributes are app-scoped management-plane fields shown/edited in Portal/Admin App User detail and may be used by IAM policy, ABAC, or token-claim generation. This Go SDK does not add a Portal/Admin App User management client in this scope, and runtime authorization checks continue to use JWT identity plus resolved permissions, never profile metadata or a cached profile.
+`UserProfile.Metadata` is profile metadata returned by `/api/v1/auth/me/profile`. It is not App User authorization attributes. App User authorization attributes are app-scoped management-plane fields shown/edited in Portal/Admin App User detail and may be used by IAM policy, ABAC, or token-claim generation. This Go SDK does not add a Portal/Admin App User management client in this scope, and runtime authorization checks continue to use JWT identity plus resolved permissions, never profile metadata or a cached profile.
 
 ## Portal Open API M2M client
 
@@ -329,3 +329,22 @@ The `cmd/iam-codegen` binary is released with [GoReleaser](./.goreleaser.yaml).
 ## License
 
 Apache 2.0 © axis-iam
+
+## Safe current-user context
+
+Call `client.GetCurrentUser(ctx, accessToken)` explicitly with a user bearer to read
+`GET /api/v1/auth/me`. This API returns identity and `authenticationContext`,
+including Application/client/session bindings, nullable Workspace/Organization,
+selection requirement, authentication time/methods, assurance and impersonation.
+Null email, an unselected Workspace and empty method lists are valid. Missing
+required bindings, omitted nullable fields and malformed context are errors.
+Metadata is display data, never an authorization source. This call sends only
+the bearer, without a client secret, and does not decode token bytes or alter
+request-local JWT verification. HTTP 401/403/dependency failures propagate as
+errors; no anonymous or empty-user success is synthesized.
+
+The existing profile methods continue to read `/api/v1/auth/me/profile`; use the
+new current-user method for the explicit safe authentication context. No unified
+BFF/transaction transport or new machine authorization API is implied.
+
+Current-account logout revokes the authenticated OAuth token/session using only the Access Token. No Direct refresh-token body or Direct login/refresh fallback is supported.

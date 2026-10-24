@@ -123,7 +123,7 @@ func TestClient_GetMe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if profile.Username != "alice" || profile.Metadata["displayName"] != "Alice" {
+	if profile.Username == nil || *profile.Username != "alice" || profile.Metadata["displayName"] != "Alice" {
 		t.Fatalf("bad profile: %+v", profile)
 	}
 	if srv.MeCalls() != 1 {
@@ -166,8 +166,8 @@ func TestSDK_GetMeCachesAndBypasses(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if first.Username != "alice" || second.Username != "alice" || fresh.Username != "alice-fresh" {
-		t.Fatalf("unexpected usernames: first=%s second=%s fresh=%s", first.Username, second.Username, fresh.Username)
+	if first.Username == nil || *first.Username != "alice" || second.Username == nil || *second.Username != "alice" || fresh.Username == nil || *fresh.Username != "alice-fresh" {
+		t.Fatalf("unexpected usernames: first=%v second=%v fresh=%v", first.Username, second.Username, fresh.Username)
 	}
 	if srv.MeCalls() != 2 {
 		t.Fatalf("want 2 /me calls, got %d", srv.MeCalls())
@@ -216,7 +216,7 @@ func TestClient_AccountOrganizationHelpersBearerAndPublic(t *testing.T) {
 			w.WriteHeader(http.StatusNoContent)
 		case r.URL.Path == "/api/v1/auth/logout" && r.Method == http.MethodPost:
 			body, _ := io.ReadAll(r.Body)
-			if !strings.Contains(string(body), `"refresh_token":"refresh-token"`) {
+			if len(body) != 0 {
 				t.Fatalf("bad logout body: %s", body)
 			}
 			w.WriteHeader(http.StatusNoContent)
@@ -297,7 +297,7 @@ func TestClient_AccountOrganizationHelpersBearerAndPublic(t *testing.T) {
 	if err := client.RevokeOtherAccountSessions(context.Background(), "user-token"); err != nil {
 		t.Fatalf("revoke other: %v", err)
 	}
-	if err := client.LogoutAccount(context.Background(), "user-token", "refresh-token"); err != nil {
+	if err := client.LogoutAccount(context.Background(), "user-token"); err != nil {
 		t.Fatalf("logout: %v", err)
 	}
 	orgs, err := client.ListAccountOrganizations(context.Background(), "user-token")

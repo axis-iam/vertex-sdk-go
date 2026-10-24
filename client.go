@@ -199,9 +199,9 @@ type UserProfile struct {
 	UserID              string               `json:"userId"`
 	ApplicationID       string               `json:"applicationId,omitempty"`
 	GlobalIdentityID    string               `json:"globalIdentityId,omitempty"`
-	Email               string               `json:"email"`
+	Email               *string              `json:"email"`
 	EmailVerified       bool                 `json:"emailVerified"`
-	Username            string               `json:"username"`
+	Username            *string              `json:"username"`
 	DisplayName         string               `json:"displayName,omitempty"`
 	AvatarURL           string               `json:"avatarUrl,omitempty"`
 	Status              string               `json:"status"`
@@ -215,7 +215,6 @@ type UserProfile struct {
 
 // AccountUpdateProfileRequest is the safe scalar profile update request.
 type AccountUpdateProfileRequest struct {
-	Username    string `json:"username,omitempty"`
 	DisplayName string `json:"displayName,omitempty"`
 	AvatarURL   string `json:"avatarUrl,omitempty"`
 }
@@ -438,17 +437,13 @@ func (c *Client) RevokeOtherAccountSessions(ctx context.Context, accessToken str
 	return c.doJSONBearerRetry(ctx, http.MethodDelete, "/api/v1/auth/sessions", token, nil, nil)
 }
 
-// LogoutAccount blacklists the current token/session and optionally revokes a refresh token.
-func (c *Client) LogoutAccount(ctx context.Context, accessToken, refreshToken string) error {
+// LogoutAccount blacklists the current token/session and revokes its OAuth session.
+func (c *Client) LogoutAccount(ctx context.Context, accessToken string) error {
 	token := normalizeBearer(accessToken)
 	if token == "" {
 		return errors.New("iam: access token is required")
 	}
-	var body any
-	if strings.TrimSpace(refreshToken) != "" {
-		body = map[string]string{"refresh_token": refreshToken}
-	}
-	return c.doJSONBearerRetry(ctx, http.MethodPost, "/api/v1/auth/logout", token, body, nil)
+	return c.doJSONBearerRetry(ctx, http.MethodPost, "/api/v1/auth/logout", token, nil, nil)
 }
 
 // ListAccountOrganizations calls GET /api/v1/auth/me/organizations.
