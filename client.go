@@ -191,26 +191,21 @@ type AccountOrganization struct {
 }
 
 // UserProfile is the response returned by GET /api/v1/auth/me/profile.
-//
-// Metadata is profile metadata for display/profile reads. It is not App User
-// authorization attributes and must not be used as an authorization source.
+// Nullable profile projections remain nil. Authorization roles and permissions
+// are returned separately by GetAccountPermissionSummary.
 type UserProfile struct {
-	ID                  string               `json:"id,omitempty"` // legacy /api/v1/auth/me field
 	UserID              string               `json:"userId"`
-	ApplicationID       string               `json:"applicationId,omitempty"`
-	GlobalIdentityID    string               `json:"globalIdentityId,omitempty"`
+	ApplicationID       string               `json:"applicationId"`
+	GlobalIdentityID    *string              `json:"globalIdentityId"`
 	Email               *string              `json:"email"`
 	EmailVerified       bool                 `json:"emailVerified"`
 	Username            *string              `json:"username"`
-	DisplayName         string               `json:"displayName,omitempty"`
-	AvatarURL           string               `json:"avatarUrl,omitempty"`
+	DisplayName         *string              `json:"displayName"`
+	AvatarURL           *string              `json:"avatarUrl"`
 	Status              string               `json:"status"`
-	CreatedAt           string               `json:"createdAt,omitempty"`
-	UpdatedAt           string               `json:"updatedAt,omitempty"`
-	CurrentOrganization *AccountOrganization `json:"currentOrganization,omitempty"`
-	Roles               []string             `json:"roles,omitempty"` // legacy /api/v1/auth/me field
-	// Metadata is /api/v1/auth/me profile metadata, not app-scoped authorization attributes.
-	Metadata map[string]any `json:"metadata,omitempty"`
+	CreatedAt           string               `json:"createdAt"`
+	UpdatedAt           string               `json:"updatedAt"`
+	CurrentOrganization *AccountOrganization `json:"currentOrganization"`
 }
 
 // AccountUpdateProfileRequest is the safe scalar profile update request.

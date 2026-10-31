@@ -120,7 +120,7 @@ func TestPortalOpenAPIClient_RegistrationGrantHelpersUseExactScopes(t *testing.T
 	if _, err := client.ListRegistrationGrants(ctx, iam.RegistrationGrantListOptions{}); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := client.CreateRegistrationGrant(ctx, iam.CreateRegistrationGrantRequest{Type: iam.CreateRegistrationGrantEmailLink}); !errors.Is(err, iam.ErrPortalOpenAPIRequest) {
+	if _, err := client.CreateRegistrationGrant(ctx, iam.CreateRegistrationGrantRequest{Type: iam.CreateRegistrationGrantEmailLink}, "r11-create-key"); !errors.Is(err, iam.ErrPortalOpenAPIRequest) {
 		t.Fatalf("malformed create response error = %v", err)
 	}
 	if _, err := client.ListRegistrationGrantRedemptions(ctx, "123e4567-e89b-12d3-a456-426614174000", nil, nil); err != nil {
@@ -176,13 +176,16 @@ func TestPortalOpenAPIClient_RegistrationGrantCreateAcceptsNullNonmatchingProof(
 				if request.method != http.MethodPost || request.path != "/open/v1/registration-grants" || request.body != `{"type":"`+string(test.typeValue)+`"}` {
 					t.Fatalf("unexpected create request: %+v", request)
 				}
-				body := map[string]any{"grant": registrationGrantJSON(test.grantType)}
+				body := map[string]any{"grant": registrationGrantJSON(test.grantType), "secretAlreadyIssued": false, "registrationInvitationUrl": nil}
+				if test.grantType == "EMAIL_LINK" {
+					body["registrationInvitationUrl"] = "https://issuer.example.test/invitation?token=fake-one-time-proof"
+				}
 				for key, value := range test.response {
 					body[key] = value
 				}
 				return http.StatusCreated, body
 			}
-			created, err := newPortalOpenAPITestClient(t, server.URL, 0).CreateRegistrationGrant(context.Background(), iam.CreateRegistrationGrantRequest{Type: test.typeValue})
+			created, err := newPortalOpenAPITestClient(t, server.URL, 0).CreateRegistrationGrant(context.Background(), iam.CreateRegistrationGrantRequest{Type: test.typeValue}, "r11-create-key")
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -212,13 +215,16 @@ func TestPortalOpenAPIClient_RegistrationGrantCreateRejectsInvalidProofContracts
 	} {
 		server := newPortalOpenAPITestServer(t, 120)
 		server.portalResponse = func(_ portalOpenAPIResourceRequest) (int, any) {
-			body := map[string]any{"grant": registrationGrantJSON(test.grantType)}
+			body := map[string]any{"grant": registrationGrantJSON(test.grantType), "secretAlreadyIssued": false, "registrationInvitationUrl": nil}
+			if test.grantType == "EMAIL_LINK" {
+				body["registrationInvitationUrl"] = "https://issuer.example.test/invitation?token=fake-one-time-proof"
+			}
 			for key, value := range test.proofs {
 				body[key] = value
 			}
 			return http.StatusCreated, body
 		}
-		_, err := newPortalOpenAPITestClient(t, server.URL, 0).CreateRegistrationGrant(context.Background(), iam.CreateRegistrationGrantRequest{Type: iam.CreateRegistrationGrantEmailLink})
+		_, err := newPortalOpenAPITestClient(t, server.URL, 0).CreateRegistrationGrant(context.Background(), iam.CreateRegistrationGrantRequest{Type: iam.CreateRegistrationGrantEmailLink}, "r11-create-key")
 		server.Close()
 		if !errors.Is(err, iam.ErrPortalOpenAPIRequest) || strings.Contains(err.Error(), "fake-token") || strings.Contains(err.Error(), "fake-code") {
 			t.Fatalf("invalid proof error = %v", err)
@@ -871,6 +877,110 @@ func (s *portalOpenAPITestServer) handlePortal(w http.ResponseWriter, r *http.Re
 	writePortalOpenAPIJSON(w, http.StatusOK, map[string]any{"ok": "true"})
 }
 
+func TestRegistrationInvitationDeliveryRotationAndReplay(t *testing.T) {
+	server := newPortalOpenAPITestServer(t, 120)
+	defer server.Close()
+	id := "019f4cca-88f8-7e77-a67d-4a6a2a68b803"
+	deliveryID := "019f4cca-88f8-7e77-a67d-4a6a2a68b804"
+	deliveryJSON := func(status string) map[string]any {
+		return map[string]any{"id": deliveryID, "grantId": id, "recipient": "member@example.test",
+			"variant": "LINK", "status": status, "failureCode": nil, "attemptCount": 0, "maxAttempts": 3,
+			"nextAttemptAt": nil, "retryable": false, "expiresAt": "2026-11-01T00:00:00Z",
+			"createdAt": "2026-10-31T00:00:00Z"}
+	}
+	server.portalResponse = func(req portalOpenAPIResourceRequest) (int, any) {
+		if req.method == http.MethodGet {
+			if req.idempotencyKey != "" {
+				t.Fatal("GET must not carry a mutation key")
+			}
+			return http.StatusOK, deliveryJSON("DELIVERED")
+		}
+		if req.idempotencyKey == "" {
+			t.Fatal("missing explicit idempotency key")
+		}
+		if strings.HasSuffix(req.path, "/deliveries") {
+			if req.idempotencyKey != "delivery-key" || !strings.Contains(req.body, `"variant":"LINK"`) {
+				t.Fatal("incorrect delivery request")
+			}
+			return http.StatusAccepted, deliveryJSON("QUEUED")
+		}
+		if strings.HasSuffix(req.path, "/rotate") {
+			if req.idempotencyKey != "rotate-key" || req.body != `{"expectedVersion":0}` {
+				t.Fatal("incorrect rotation request")
+			}
+			return http.StatusOK, map[string]any{"grant": registrationGrantJSON("EMAIL_LINK"), "secretAlreadyIssued": true}
+		}
+		return http.StatusCreated, map[string]any{"grant": registrationGrantJSON("EMAIL_LINK"), "secretAlreadyIssued": false,
+			"registrationGrantToken": "fake-proof", "registrationInvitationUrl": "https://issuer.example.test/invitation?token=fake-proof"}
+	}
+	client := newPortalOpenAPITestClient(t, server.URL, 0)
+	ctx := context.Background()
+	created, err := client.CreateRegistrationGrant(ctx, iam.CreateRegistrationGrantRequest{Type: iam.CreateRegistrationGrantEmailLink}, "create-key")
+	if err != nil || created.RegistrationInvitationURL == nil {
+		t.Fatalf("create failed: %v", err)
+	}
+	delivery, err := client.DeliverRegistrationGrant(ctx, id, iam.RegistrationGrantDeliveryRequest{Recipient: "member@example.test", Variant: "LINK"}, "delivery-key")
+	if err != nil || delivery.Status != "QUEUED" {
+		t.Fatalf("delivery failed: %v", err)
+	}
+	replay, err := client.RotateRegistrationGrant(ctx, id, 0, "rotate-key")
+	if err != nil || !replay.SecretAlreadyIssued || replay.RegistrationGrantToken != nil {
+		t.Fatalf("rotation replay failed: %v", err)
+	}
+	status, err := client.GetRegistrationGrantDelivery(ctx, id, deliveryID)
+	if err != nil || status.Status != "DELIVERED" {
+		t.Fatalf("status failed: %v", err)
+	}
+	if server.tokenCalls[iam.RegistrationGrantsWriteScope] != 1 || server.tokenCalls[iam.RegistrationGrantsReadScope] != 1 {
+		t.Fatal("wrong exact scopes")
+	}
+}
+
+func TestRegistrationInvitationRejectsKeysAndSecretReplay(t *testing.T) {
+	server := newPortalOpenAPITestServer(t, 120)
+	defer server.Close()
+	client := newPortalOpenAPITestClient(t, server.URL, 0)
+	for _, key := range []string{"", " ", "bad\nkey", strings.Repeat("a", 201)} {
+		if _, err := client.CreateRegistrationGrant(context.Background(), iam.CreateRegistrationGrantRequest{Type: iam.CreateRegistrationGrantEmailLink}, key); err == nil {
+			t.Fatal("invalid key accepted")
+		}
+	}
+	if len(server.tokenRequests) != 0 || len(server.portalRequests) != 0 {
+		t.Fatal("invalid key made a network call")
+	}
+	server.portalResponse = func(req portalOpenAPIResourceRequest) (int, any) {
+		return http.StatusCreated, map[string]any{"grant": registrationGrantJSON("EMAIL_LINK"), "secretAlreadyIssued": true, "registrationGrantToken": "must-not-leak"}
+	}
+	_, err := client.CreateRegistrationGrant(context.Background(), iam.CreateRegistrationGrantRequest{Type: iam.CreateRegistrationGrantEmailLink}, "same-key")
+	if err == nil || strings.Contains(err.Error(), "must-not-leak") {
+		t.Fatal("secret replay not rejected safely")
+	}
+	if len(server.portalRequests) != 1 {
+		t.Fatal("mutation was retried")
+	}
+}
+
+func TestRegistrationInvitationRejectsMissingDeliveryScalarsWithoutRetry(t *testing.T) {
+	server := newPortalOpenAPITestServer(t, 120)
+	defer server.Close()
+	id := "019f4cca-88f8-7e77-a67d-4a6a2a68b803"
+	deliveryID := "019f4cca-88f8-7e77-a67d-4a6a2a68b804"
+	client := newPortalOpenAPITestClient(t, server.URL, 0)
+	for _, field := range []string{"attemptCount", "retryable", "recipient", "expiresAt", "status"} {
+		body := map[string]any{"id": deliveryID, "grantId": id, "recipient": "member@example.test",
+			"variant": "LINK", "status": "QUEUED", "attemptCount": 0, "retryable": false,
+			"createdAt": "2026-10-31T00:00:00Z", "expiresAt": "2026-11-01T00:00:00Z"}
+		delete(body, field)
+		server.portalResponse = func(req portalOpenAPIResourceRequest) (int, any) { return http.StatusOK, body }
+		if _, err := client.GetRegistrationGrantDelivery(context.Background(), id, deliveryID); err == nil {
+			t.Fatalf("accepted delivery missing %s", field)
+		}
+	}
+	if len(server.portalRequests) != 5 {
+		t.Fatal("invalid responses were retried")
+	}
+}
+
 func ptr(value string) *string {
 	return &value
 }
@@ -892,7 +1002,7 @@ func organizationMemberJSON(id string) map[string]any {
 }
 
 func registrationGrantJSON(grantType string) map[string]any {
-	return map[string]any{"id": "019f4cca-88f8-7e77-a67d-4a6a2a68b803", "type": grantType, "status": "ACTIVE", "displayName": nil, "allowedEmail": nil, "allowedDomain": nil, "expiresAt": nil, "maxUses": nil, "usedCount": 0, "sourceType": "API", "createdAt": "2026-07-11T00:00:00Z", "updatedAt": "2026-07-11T00:00:00Z", "revokedAt": nil, "revokeReason": nil}
+	return map[string]any{"id": "019f4cca-88f8-7e77-a67d-4a6a2a68b803", "version": 0, "type": grantType, "status": "ACTIVE", "displayName": nil, "allowedEmail": nil, "allowedDomain": nil, "expiresAt": nil, "maxUses": nil, "usedCount": 0, "sourceType": "API", "createdAt": "2026-07-11T00:00:00Z", "updatedAt": "2026-07-11T00:00:00Z", "revokedAt": nil, "revokeReason": nil}
 }
 
 func registrationGrantPageJSON(size, number int) map[string]any {

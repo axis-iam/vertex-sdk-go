@@ -53,25 +53,20 @@ type AccountOrganizationDTO struct {
 	Current        bool   `json:"current"`
 }
 
-// UserProfileDTO mirrors GET /api/v1/auth/me/profile.
-//
-// Metadata is profile metadata for test profile responses, not App User
-// authorization attributes.
+// UserProfileDTO mirrors GET /api/v1/auth/me/profile, including nullable projections.
 type UserProfileDTO struct {
 	UserID              string                  `json:"userId"`
-	ApplicationID       string                  `json:"applicationId,omitempty"`
-	GlobalIdentityID    string                  `json:"globalIdentityId,omitempty"`
-	Email               string                  `json:"email"`
+	ApplicationID       string                  `json:"applicationId"`
+	GlobalIdentityID    *string                 `json:"globalIdentityId"`
+	Email               *string                 `json:"email"`
 	EmailVerified       bool                    `json:"emailVerified"`
-	Username            string                  `json:"username"`
-	DisplayName         string                  `json:"displayName,omitempty"`
-	AvatarURL           string                  `json:"avatarUrl,omitempty"`
+	Username            *string                 `json:"username"`
+	DisplayName         *string                 `json:"displayName"`
+	AvatarURL           *string                 `json:"avatarUrl"`
 	Status              string                  `json:"status"`
-	CreatedAt           string                  `json:"createdAt,omitempty"`
-	UpdatedAt           string                  `json:"updatedAt,omitempty"`
-	CurrentOrganization *AccountOrganizationDTO `json:"currentOrganization,omitempty"`
-	Roles               []string                `json:"roles,omitempty"`
-	Metadata            map[string]any          `json:"metadata,omitempty"`
+	CreatedAt           string                  `json:"createdAt"`
+	UpdatedAt           string                  `json:"updatedAt"`
+	CurrentOrganization *AccountOrganizationDTO `json:"currentOrganization"`
 }
 
 // NewMockServer spins up a server. Call s.Close() when done.
@@ -119,7 +114,7 @@ func (m *MockServer) Given(role string, perms ...string) *MockServer {
 	return m
 }
 
-// GivenUserProfile configures the response returned by /api/v1/auth/me for a subject.
+// GivenUserProfile configures the response returned by /api/v1/auth/me/profile for a subject.
 func (m *MockServer) GivenUserProfile(subject string, profile UserProfileDTO) *MockServer {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -401,12 +396,13 @@ func (m *MockServer) me(w http.ResponseWriter, r *http.Request) {
 	profile, ok := m.userProfiles["u1"]
 	m.mu.Unlock()
 	if !ok {
+		email, username := "u1@example.com", "u1"
 		profile = UserProfileDTO{
 			UserID:        "u1",
 			ApplicationID: "app-1",
-			Email:         "u1@example.com",
+			Email:         &email,
 			EmailVerified: true,
-			Username:      "u1",
+			Username:      &username,
 			Status:        "ACTIVE",
 		}
 	}

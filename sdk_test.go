@@ -107,13 +107,11 @@ func TestClient_GetMe(t *testing.T) {
 	srv.GivenUserProfile("u1", iamtest.UserProfileDTO{
 		UserID:        "u1",
 		ApplicationID: "app-1",
-		Email:         "u1@example.com",
-		Username:      "alice",
-		DisplayName:   "Alice",
+		Email:         ptr("u1@example.com"),
+		Username:      ptr("alice"),
+		DisplayName:   ptr("Alice"),
 		Status:        "ACTIVE",
 		EmailVerified: true,
-		Roles:         []string{"admin"},
-		Metadata:      map[string]any{"displayName": "Alice"},
 	})
 	client, err := iam.NewClient(&iam.SDKConfig{Endpoint: srv.URL, ClientID: "my-app", ClientSecret: "shh"})
 	if err != nil {
@@ -123,7 +121,7 @@ func TestClient_GetMe(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if profile.Username == nil || *profile.Username != "alice" || profile.Metadata["displayName"] != "Alice" {
+	if profile.Username == nil || *profile.Username != "alice" || profile.DisplayName == nil || *profile.DisplayName != "Alice" {
 		t.Fatalf("bad profile: %+v", profile)
 	}
 	if srv.MeCalls() != 1 {
@@ -136,11 +134,10 @@ func TestSDK_GetMeCachesAndBypasses(t *testing.T) {
 	srv.GivenUserProfile("u1", iamtest.UserProfileDTO{
 		UserID:        "u1",
 		ApplicationID: "app-1",
-		Email:         "u1@example.com",
-		Username:      "alice",
+		Email:         ptr("u1@example.com"),
+		Username:      ptr("alice"),
 		Status:        "ACTIVE",
 		EmailVerified: true,
-		Metadata:      map[string]any{},
 	})
 	ctx := authz.WithUser(context.Background(), &authz.User{Subject: "u1", AppID: "my-app"})
 
@@ -151,11 +148,10 @@ func TestSDK_GetMeCachesAndBypasses(t *testing.T) {
 	srv.GivenUserProfile("u1", iamtest.UserProfileDTO{
 		UserID:        "u1",
 		ApplicationID: "app-1",
-		Email:         "u1@example.com",
-		Username:      "alice-fresh",
+		Email:         ptr("u1@example.com"),
+		Username:      ptr("alice-fresh"),
 		Status:        "ACTIVE",
 		EmailVerified: true,
-		Metadata:      map[string]any{},
 	})
 	second, err := sdk.GetMe(ctx, "access-token")
 	if err != nil {

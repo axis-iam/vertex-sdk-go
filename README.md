@@ -173,7 +173,7 @@ accepted, err := sdk.AcceptOrganizationInvitation(ctx, invitationTokenFromURL, a
 
 Do not persist raw invitation tokens in durable state. Keep them URL/request scoped.
 
-`UserProfile.Metadata` is profile metadata returned by `/api/v1/auth/me/profile`. It is not App User authorization attributes. App User authorization attributes are app-scoped management-plane fields shown/edited in Portal/Admin App User detail and may be used by IAM policy, ABAC, or token-claim generation. This Go SDK does not add a Portal/Admin App User management client in this scope, and runtime authorization checks continue to use JWT identity plus resolved permissions, never profile metadata or a cached profile.
+`UserProfile` mirrors the current `/api/v1/auth/me/profile` response; it exposes `UserID` and nullable string pointers, not `ID`, `Roles` or `Metadata`. Roles and permissions are available from `GetAccountPermissionSummary`. Profile data is not an authorization source; runtime authorization continues to use verified JWT identity and resolved permissions.
 
 ## Portal Open API M2M client
 
@@ -214,11 +214,29 @@ For lower-level control, call `GetMachineToken(ctx, iam.PortalOpenAPIReadScope)`
 Registration Grant helpers are server-only and require `registration_grants:read`, `registration_grants:write`, and `registration_grants:redemptions:read` on the M2M client.
 
 ```go
-created, err := portal.CreateRegistrationGrant(ctx, iam.CreateRegistrationGrantRequest{Type: iam.CreateRegistrationGrantEmailLink})
+created, err := portal.CreateRegistrationGrant(ctx, iam.CreateRegistrationGrantRequest{Type: iam.CreateRegistrationGrantEmailLink}, createKey)
 if err != nil { return err }
-if created.RegistrationGrantToken == nil { return errors.New("missing one-time proof") }
-// Consume immediately. Never log, cache, or persist the proof.
+if !created.SecretAlreadyIssued {
+    // Present RegistrationInvitationURL once in your protected management UI.
+    // Never log or persist the URL, token, or access code.
+}
+delivery, err := portal.DeliverRegistrationGrant(ctx, created.Grant.ID,
+    iam.RegistrationGrantDeliveryRequest{Recipient: "member@example.test", Locale: "en", Variant: "LINK"}, deliveryKey)
+if err != nil { return err }
+status, err := portal.GetRegistrationGrantDelivery(ctx, created.Grant.ID, delivery.ID)
+if err != nil { return err }
+rotated, err := portal.RotateRegistrationGrant(ctx, created.Grant.ID, created.Grant.Version, rotationKey)
+if err != nil { return err }
+_ = status
+_ = rotated
 ```
+
+Supply a stable, nonblank `Idempotency-Key` (at most 200 characters, no control characters)
+for each create, delivery, or rotation command. Reuse it only to recover the same command;
+the SDK never automatically retries mutations. A replay sets `SecretAlreadyIssued` and returns
+no URL, token, or access code. Rotation requires the last observed grant version. `LINK` delivers
+an `EMAIL_LINK` grant and `CODE` delivers an `ACCESS_CODE` grant. Delivery/status responses
+contain no invitation credentials. Sending and opening an invitation do not consume a registration use.
 
 ## Code generation
 
@@ -284,7 +302,7 @@ func TestHandler(t *testing.T) {
 | `JWKSRefresh` | `1h` | JWKS cache TTL |
 | `PermissionCacheTTL` | `5m` | role→perms cache TTL |
 | `PermissionCacheMax` | `10000` | ristretto max entries |
-| `UserProfileCacheTTL` | `1m` | `/api/v1/auth/me` profile cache TTL |
+| `UserProfileCacheTTL` | `1m` | `/api/v1/auth/me/profile` cache TTL |
 | `UserProfileCacheMax` | `10000` | profile cache max entries |
 | `DisableUserProfileCache` | `false` | disables `SDK.GetMe` cache; `Client.GetMe` is always uncached |
 | `ResolveMode` | `OnDemand` | `FullSync` pre-loads at startup |
@@ -348,3 +366,15 @@ new current-user method for the explicit safe authentication context. No unified
 BFF/transaction transport or new machine authorization API is implied.
 
 Current-account logout revokes the authenticated OAuth token/session using only the Access Token. No Direct refresh-token body or Direct login/refresh fallback is supported.
+
+## Headless Account Security
+
+Typed current-user identifier, login-method, identity-operation and MFA-operation APIs are
+available through the existing public client. See [the headless operation guide](docs/account-security.md)
+for the full method/route map, explicit proof execution, one-time material delivery, typed errors,
+idempotent creation and lost-response recovery. These are not M2M administration or browser OAuth helpers.
+
+The headless account-security guide also covers authenticated identifier-management capabilities
+and the nullable, adapter-returned LINK target presentation; neither triggers browser orchestration.
+
+The account-security guide includes the typed live recovery-code remainder read (not generation-time count).

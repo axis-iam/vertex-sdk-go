@@ -34,6 +34,7 @@ const (
 // RegistrationGrant is a safe grant detail. It never contains a raw proof.
 type RegistrationGrant struct {
 	ID            string                  `json:"id"`
+	Version       int64                   `json:"version"`
 	Type          RegistrationGrantType   `json:"type"`
 	Status        RegistrationGrantStatus `json:"status"`
 	DisplayName   *string                 `json:"displayName"`
@@ -68,9 +69,11 @@ type CreateRegistrationGrantRequest struct {
 
 // CreatedRegistrationGrant contains the one-time raw proof returned only by create.
 type CreatedRegistrationGrant struct {
-	Grant                  RegistrationGrant `json:"grant"`
-	RegistrationGrantToken *string           `json:"registrationGrantToken"`
-	RegistrationAccessCode *string           `json:"registrationAccessCode"`
+	Grant                     RegistrationGrant `json:"grant"`
+	RegistrationGrantToken    *string           `json:"registrationGrantToken"`
+	RegistrationAccessCode    *string           `json:"registrationAccessCode"`
+	RegistrationInvitationURL *string           `json:"registrationInvitationUrl"`
+	SecretAlreadyIssued       bool              `json:"secretAlreadyIssued"`
 }
 
 // RegistrationGrantListOptions filters the grant list using the API's page parameters.
@@ -122,12 +125,16 @@ func (c *PortalOpenAPIClient) ListRegistrationGrants(ctx context.Context, option
 }
 
 // CreateRegistrationGrant creates an EMAIL_LINK or ACCESS_CODE grant with exactly one matching proof.
-func (c *PortalOpenAPIClient) CreateRegistrationGrant(ctx context.Context, request CreateRegistrationGrantRequest) (*CreatedRegistrationGrant, error) {
+func (c *PortalOpenAPIClient) CreateRegistrationGrant(ctx context.Context, request CreateRegistrationGrantRequest, idempotencyKey string) (*CreatedRegistrationGrant, error) {
 	if request.Type != CreateRegistrationGrantEmailLink && request.Type != CreateRegistrationGrantAccessCode {
 		return nil, invalidRegistrationGrantResponse()
 	}
+	headers, err := registrationCommandHeaders(idempotencyKey)
+	if err != nil {
+		return nil, err
+	}
 	var response CreatedRegistrationGrant
-	if err := c.requestJSONWithScope(ctx, http.MethodPost, "/open/v1/registration-grants", RegistrationGrantsWriteScope, request, &response); err != nil {
+	if _, err := c.requestJSONWithScopeAndHeaders(ctx, http.MethodPost, "/open/v1/registration-grants", RegistrationGrantsWriteScope, request, &response, headers); err != nil {
 		return nil, err
 	}
 	if err := response.validate(); err != nil {
@@ -202,8 +209,25 @@ func (c *PortalOpenAPIClient) registrationGrantLifecycle(ctx context.Context, me
 func (response CreatedRegistrationGrant) validate() error {
 	hasToken := response.RegistrationGrantToken != nil && *response.RegistrationGrantToken != ""
 	hasCode := response.RegistrationAccessCode != nil && *response.RegistrationAccessCode != ""
-	if hasToken == hasCode || (response.Grant.Type == RegistrationGrantEmailLink && !hasToken) || (response.Grant.Type == RegistrationGrantAccessCode && !hasCode) || (response.Grant.Type != RegistrationGrantEmailLink && response.Grant.Type != RegistrationGrantAccessCode) {
+	hasURL := response.RegistrationInvitationURL != nil && *response.RegistrationInvitationURL != ""
+	if response.Grant.Type != RegistrationGrantEmailLink && response.Grant.Type != RegistrationGrantAccessCode {
 		return invalidRegistrationGrantResponse()
+	}
+	if response.SecretAlreadyIssued {
+		if response.RegistrationGrantToken != nil || response.RegistrationAccessCode != nil || response.RegistrationInvitationURL != nil {
+			return invalidRegistrationGrantResponse()
+		}
+		return nil
+	}
+	if (response.Grant.Type == RegistrationGrantEmailLink && (!hasToken || !hasURL || response.RegistrationAccessCode != nil)) ||
+		(response.Grant.Type == RegistrationGrantAccessCode && (!hasCode || response.RegistrationGrantToken != nil || response.RegistrationInvitationURL != nil)) {
+		return invalidRegistrationGrantResponse()
+	}
+	if hasURL {
+		u, err := url.Parse(*response.RegistrationInvitationURL)
+		if err != nil || (u.Scheme != "https" && u.Scheme != "http") || u.Hostname() == "" || u.User != nil || u.Fragment != "" {
+			return invalidRegistrationGrantResponse()
+		}
 	}
 	return nil
 }

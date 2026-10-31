@@ -46,7 +46,7 @@ type SDKConfig struct {
 	PermissionCacheTTL time.Duration
 	// PermissionCacheMax is the maximum number of cache entries. Default 10000.
 	PermissionCacheMax int64
-	// UserProfileCacheTTL is the TTL for explicit /api/v1/auth/me profile lookups. Default 1m.
+	// UserProfileCacheTTL is the TTL for explicit /api/v1/auth/me/profile lookups. Default 1m.
 	UserProfileCacheTTL time.Duration
 	// UserProfileCacheMax is the maximum number of user profile cache entries. Default 10000.
 	UserProfileCacheMax int64
