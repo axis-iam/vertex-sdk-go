@@ -71,7 +71,7 @@ func TestAccountSecurityRecoveryRemaining(t *testing.T) {
 		}))
 		defer server.Close()
 		cfg := func() *iam.SDKConfig {
-			return &iam.SDKConfig{Endpoint: server.URL, ClientID: "client", ClientSecret: "fixture-secret"}
+			return &iam.SDKConfig{Endpoint: server.URL, ClientID: "client", Audience: "api://orders", ClientSecret: "fixture-secret"}
 		}
 		c, err := iam.NewClient(cfg())
 		if err != nil {

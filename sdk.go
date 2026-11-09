@@ -42,6 +42,9 @@ func New(cfg *SDKConfig) (*SDK, error) {
 	if err := cfg.Validate(); err != nil {
 		return nil, err
 	}
+	if strings.TrimSpace(cfg.Audience) == "" {
+		return nil, errors.New("iam: SDKConfig.Audience is required (Application.resourceAudience)")
+	}
 	client, err := NewClient(cfg)
 	if err != nil {
 		return nil, err

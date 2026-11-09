@@ -35,6 +35,7 @@ func main() {
 	cfg := &iam.SDKConfig{
 		Endpoint:     mustEnv("IAM_ENDPOINT"),
 		ClientID:     mustEnv("IAM_CLIENT_ID"),
+		Audience:     mustEnv("IAM_RESOURCE_AUDIENCE"),
 		ClientSecret: mustEnv("IAM_CLIENT_SECRET"),
 	}
 	sdk, err := iam.New(cfg)

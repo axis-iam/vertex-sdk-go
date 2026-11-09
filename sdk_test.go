@@ -2,6 +2,7 @@ package iam_test
 
 import (
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -20,11 +21,12 @@ func newSDK(t *testing.T) (*iam.SDK, *iamtest.MockServer) {
 		t.Fatal(err)
 	}
 	t.Cleanup(srv.Close)
-	srv.WithAudience("my-app").Given("admin", "posts:*", "users:read")
+	srv.Given("admin", "posts:*", "users:read")
 
 	sdk, err := iam.New(&iam.SDKConfig{
 		Endpoint:     srv.URL,
-		ClientID:     "my-app",
+		ClientID:     "orders-m2m-client",
+		Audience:     "api://orders",
 		ClientSecret: "shh",
 	})
 	if err != nil {
@@ -59,7 +61,7 @@ func TestNew_DiscoveryFails(t *testing.T) {
 		http.NotFound(w, r)
 	}))
 	defer srv.Close()
-	_, err := iam.New(&iam.SDKConfig{Endpoint: srv.URL, ClientID: "x", ClientSecret: "y"})
+	_, err := iam.New(&iam.SDKConfig{Endpoint: srv.URL, ClientID: "x", ClientSecret: "y", Audience: "api://orders"})
 	if err == nil {
 		t.Fatal("expected discovery error")
 	}
@@ -402,5 +404,107 @@ func TestSDKClient_APIError(t *testing.T) {
 func chain(first, second func(http.Handler) http.Handler) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return first(second(next))
+	}
+}
+
+func TestNew_MissingAudience(t *testing.T) {
+	for _, audience := range []string{"", " ", "\t\n"} {
+		t.Run(strings.ReplaceAll(audience, "\n", "newline"), func(t *testing.T) {
+			calls := 0
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				calls++
+				t.Error("invalid config must fail before discovery")
+			}))
+			defer srv.Close()
+			cfg := &iam.SDKConfig{Endpoint: srv.URL, ClientID: "orders-m2m-client", ClientSecret: "fixture", Audience: audience}
+			if sdk, err := iam.New(cfg); err == nil || sdk != nil {
+				t.Fatal("expected construction failure")
+			}
+			if calls != 0 || cfg.Audience != audience {
+				t.Fatal("audience must not be inferred and discovery must not run")
+			}
+		})
+	}
+}
+
+func TestConfig_NoAudienceInference(t *testing.T) {
+	cfg := &iam.SDKConfig{Endpoint: "https://iam.example.com", ClientID: "orders-m2m-client", ClientSecret: "fixture"}
+	if err := cfg.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Audience != "" {
+		t.Fatal("HTTP configuration must not infer JWT audience")
+	}
+}
+
+func TestNewClient_WithoutJWTConfiguration(t *testing.T) {
+	cfg := &iam.SDKConfig{Endpoint: "https://iam.example.com", ClientID: "orders-m2m-client", ClientSecret: "fixture"}
+	client, err := iam.NewClient(cfg)
+	if err != nil || client == nil || cfg.Audience != "" {
+		t.Fatalf("HTTP-only construction failed: %v", err)
+	}
+}
+
+func TestSDK_RejectsClientIDAudience(t *testing.T) {
+	sdk, srv := newSDK(t)
+	token, err := srv.TokenForWith("u1", []string{"admin"}, map[string]any{"aud": "orders-m2m-client"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	sdk.Authenticate()(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		t.Fatal("wrong audience reached protected handler")
+	})).ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("want 401, got %d", rec.Code)
+	}
+}
+
+func TestSDK_PermissionClientIDSeparation(t *testing.T) {
+	sdk, srv := newSDK(t)
+	original := srv.Config.Handler
+	var resolved, listed bool
+	srv.Config.Handler = http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path == "/open/v1/permissions:resolve" {
+			var body iam.ResolvePermissionsRequest
+			if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+				t.Error(err)
+			}
+			if body.ClientID != "orders-m2m-client" || r.Header.Get("X-IAM-Client-Id") != "orders-m2m-client" {
+				t.Error("permission request must use configured client ID, not resource audience")
+			}
+			resolved = true
+			w.Header().Set("Content-Type", "application/json")
+			io.WriteString(w, `{"permissions":["orders:read"]}`)
+			return
+		}
+		if r.URL.Path == "/open/v1/apps/orders-m2m-client/permissions" {
+			listed = true
+			if r.Header.Get("X-IAM-Client-Id") != "orders-m2m-client" {
+				t.Error("management header must retain configured client ID")
+			}
+		}
+		original.ServeHTTP(w, r)
+	})
+	token, err := srv.TokenFor("u1", []string{"admin"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec := httptest.NewRecorder()
+	sdk.Authenticate()(sdk.RequirePerm(authz.PermissionKey{Resource: "orders", Action: "read"})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))).ServeHTTP(rec, req)
+	if rec.Code != http.StatusNoContent || !resolved {
+		t.Fatalf("permission resolution failed: status=%d resolved=%v", rec.Code, resolved)
+	}
+	if _, err := sdk.Client().ListPermissions(context.Background(), "orders-m2m-client"); err != nil {
+		t.Fatal(err)
+	}
+	if !listed {
+		t.Fatal("management call did not use configured client ID path")
 	}
 }

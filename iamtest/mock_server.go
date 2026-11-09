@@ -69,7 +69,8 @@ type UserProfileDTO struct {
 	CurrentOrganization *AccountOrganizationDTO `json:"currentOrganization"`
 }
 
-// NewMockServer spins up a server. Call s.Close() when done.
+// NewMockServer spins up a server with resource audience api://orders.
+// Call s.Close() when done; WithAudience overrides the token audience.
 func NewMockServer() (*MockServer, error) {
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
@@ -89,6 +90,7 @@ func NewMockServer() (*MockServer, error) {
 		signer:       signer,
 		privateKey:   priv,
 		keyID:        "test-key",
+		audienceFor:  "api://orders",
 	}
 	m.Server = httptest.NewServer(http.HandlerFunc(m.handle))
 	m.issuer = m.Server.URL

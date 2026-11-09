@@ -35,7 +35,8 @@ type SDKConfig struct {
 	ClientID string
 	// ClientSecret authenticates the WEB/M2M confidential ApplicationClient.
 	ClientSecret string
-	// Audience expected in JWTs. Defaults to ClientID.
+	// Audience is Application.resourceAudience, the expected JWT aud claim.
+	// Required by New; never inferred from ClientID. Optional for HTTP-only NewClient.
 	Audience string
 	// Issuer expected in JWTs. Defaults to Endpoint.
 	Issuer string
@@ -73,9 +74,6 @@ func (c *SDKConfig) Validate() error {
 	}
 	if c.ClientSecret == "" {
 		return errors.New("iam: SDKConfig.ClientSecret is required for WEB/M2M confidential ApplicationClient")
-	}
-	if c.Audience == "" {
-		c.Audience = c.ClientID
 	}
 	if c.Issuer == "" {
 		c.Issuer = c.Endpoint

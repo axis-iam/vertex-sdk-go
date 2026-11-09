@@ -23,7 +23,6 @@ func newStack(t *testing.T) *stack {
 		t.Fatal(err)
 	}
 	t.Cleanup(srv.Close)
-	srv.WithAudience("my-app")
 
 	jwks, err := iamjwt.NewJWKSProvider(iamjwt.JWKSOptions{
 		URL:    srv.URL + "/.well-known/jwks.json",
@@ -35,7 +34,7 @@ func newStack(t *testing.T) *stack {
 	verifier, err := iamjwt.NewVerifier(iamjwt.VerifierOptions{
 		JWKS:     jwks,
 		Issuer:   srv.Issuer(),
-		Audience: "my-app",
+		Audience: "api://orders",
 	})
 	if err != nil {
 		t.Fatal(err)
@@ -73,7 +72,7 @@ func TestAuth_BadToken(t *testing.T) {
 func TestAuth_Valid(t *testing.T) {
 	s := newStack(t)
 	resolver := iamtest.NewMockResolver().Given("admin", "posts:*", "users:read")
-	mw := middleware.Auth(middleware.AuthConfig{Verifier: s.verifier, Resolver: resolver, ClientID: "my-app"})
+	mw := middleware.Auth(middleware.AuthConfig{Verifier: s.verifier, Resolver: resolver, ClientID: "orders-m2m-client"})
 
 	tok, err := s.mock.TokenFor("u1", []string{"admin"})
 	if err != nil {
@@ -104,7 +103,7 @@ func TestRequirePerm(t *testing.T) {
 	resolver := iamtest.NewMockResolver().
 		Given("admin", "posts:*").
 		Given("viewer", "posts:read")
-	auth := middleware.Auth(middleware.AuthConfig{Verifier: s.verifier, Resolver: resolver, ClientID: "my-app"})
+	auth := middleware.Auth(middleware.AuthConfig{Verifier: s.verifier, Resolver: resolver, ClientID: "orders-m2m-client"})
 	requireWrite := middleware.RequirePerm(authz.PermissionKey{Resource: "posts", Action: "write"})
 
 	// admin allowed
@@ -131,7 +130,7 @@ func TestRequirePerm(t *testing.T) {
 func TestRequireAnyPerm(t *testing.T) {
 	s := newStack(t)
 	resolver := iamtest.NewMockResolver().Given("viewer", "posts:read")
-	auth := middleware.Auth(middleware.AuthConfig{Verifier: s.verifier, Resolver: resolver, ClientID: "my-app"})
+	auth := middleware.Auth(middleware.AuthConfig{Verifier: s.verifier, Resolver: resolver, ClientID: "orders-m2m-client"})
 
 	tok, _ := s.mock.TokenFor("u1", []string{"viewer"})
 	req := httptest.NewRequest("GET", "/", nil)
@@ -150,7 +149,7 @@ func TestRequireAnyPerm(t *testing.T) {
 func TestRequireAllPerms(t *testing.T) {
 	s := newStack(t)
 	resolver := iamtest.NewMockResolver().Given("editor", "posts:read", "posts:write")
-	auth := middleware.Auth(middleware.AuthConfig{Verifier: s.verifier, Resolver: resolver, ClientID: "my-app"})
+	auth := middleware.Auth(middleware.AuthConfig{Verifier: s.verifier, Resolver: resolver, ClientID: "orders-m2m-client"})
 	all := middleware.RequireAllPerms([]authz.PermissionKey{
 		{Resource: "posts", Action: "read"},
 		{Resource: "posts", Action: "write"},
@@ -168,7 +167,7 @@ func TestRequireAllPerms(t *testing.T) {
 func TestRequireNoImpersonation(t *testing.T) {
 	s := newStack(t)
 	resolver := iamtest.NewMockResolver().Given("admin", "posts:*")
-	auth := middleware.Auth(middleware.AuthConfig{Verifier: s.verifier, Resolver: resolver, ClientID: "my-app"})
+	auth := middleware.Auth(middleware.AuthConfig{Verifier: s.verifier, Resolver: resolver, ClientID: "orders-m2m-client"})
 
 	tok, _ := s.mock.TokenForWith("u1", []string{"admin"}, map[string]any{"act": map[string]any{"sub": "admin-actor"}})
 	req := httptest.NewRequest("POST", "/danger", nil)
@@ -184,7 +183,7 @@ func TestRequireNoImpersonation(t *testing.T) {
 func TestRequireStepUp(t *testing.T) {
 	s := newStack(t)
 	resolver := iamtest.NewMockResolver().Given("admin", "posts:*")
-	auth := middleware.Auth(middleware.AuthConfig{Verifier: s.verifier, Resolver: resolver, ClientID: "my-app"})
+	auth := middleware.Auth(middleware.AuthConfig{Verifier: s.verifier, Resolver: resolver, ClientID: "orders-m2m-client"})
 	mfa := middleware.RequireStepUp("urn:iam:acr:mfa")
 
 	// without acr → 403

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/go-jose/go-jose/v4"
@@ -21,20 +22,23 @@ type Verifier struct {
 
 // VerifierOptions configures a Verifier.
 type VerifierOptions struct {
-	JWKS             *JWKSProvider
-	Issuer           string
-	Audience         string
-	SignatureAlgs    []jose.SignatureAlgorithm
-	ClockSkewLeeway  time.Duration
+	JWKS            *JWKSProvider
+	Issuer          string
+	Audience        string // Application.resourceAudience; required, never inferred from client ID.
+	SignatureAlgs   []jose.SignatureAlgorithm
+	ClockSkewLeeway time.Duration
 }
 
-// NewVerifier constructs a Verifier. Both JWKS and Issuer are required.
+// NewVerifier constructs a Verifier. JWKS, Issuer, and Audience are required.
 func NewVerifier(opts VerifierOptions) (*Verifier, error) {
 	if opts.JWKS == nil {
 		return nil, errors.New("iamjwt: nil JWKSProvider")
 	}
 	if opts.Issuer == "" {
 		return nil, errors.New("iamjwt: empty Issuer")
+	}
+	if strings.TrimSpace(opts.Audience) == "" {
+		return nil, errors.New("iamjwt: empty Audience (Application.resourceAudience is required)")
 	}
 	if len(opts.SignatureAlgs) == 0 {
 		opts.SignatureAlgs = []jose.SignatureAlgorithm{jose.RS256, jose.ES256}
@@ -75,11 +79,9 @@ func (v *Verifier) Verify(ctx context.Context, token string) (*Claims, error) {
 	}
 
 	expected := jwt.Expected{
-		Issuer: v.expectedIssuer,
-		Time:   time.Now(),
-	}
-	if v.expectedAudience != "" {
-		expected.AnyAudience = jwt.Audience{v.expectedAudience}
+		Issuer:      v.expectedIssuer,
+		Time:        time.Now(),
+		AnyAudience: jwt.Audience{v.expectedAudience},
 	}
 	if err := c.Claims.ValidateWithLeeway(expected, v.leeway); err != nil {
 		return nil, fmt.Errorf("iamjwt: validate claims: %w", err)

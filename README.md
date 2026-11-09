@@ -65,6 +65,7 @@ import (
 sdk, err := iam.New(&iam.SDKConfig{
     Endpoint:     "https://iam.example.com",
     ClientID:     "iam_web_or_m2m_client_id",
+    Audience:     "api://orders", // Application.resourceAudience
     ClientSecret: mustEnv("IAM_CLIENT_SECRET"),
 })
 if err != nil { log.Fatal(err) }
@@ -290,14 +291,16 @@ func TestHandler(t *testing.T) {
 
 ## Configuration
 
-`SDKConfig` fields (all optional except `Endpoint`, `ClientID`, and `ClientSecret` for server-side integrations):
+`New` requires an explicit nonblank `Audience` equal to `Application.resourceAudience`, which is separate from `ApplicationClient.clientId`. It rejects missing audience before discovery. Direct `jwt.NewVerifier` also requires a nonblank audience. HTTP-only `NewClient` needs no JWT audience. The demo programs read `IAM_RESOURCE_AUDIENCE` separately from `IAM_CLIENT_ID`.
+
+`SDKConfig` fields (`Endpoint`, `ClientID`, and `ClientSecret` are required; `New` additionally requires `Audience`):
 
 | Field | Default | Description |
 | --- | --- | --- |
 | `Endpoint` | — | IAM base URL |
 | `ClientID` | — | `ApplicationClient.clientId` for the WEB/M2M confidential client used by this server |
 | `ClientSecret` | — | Secret for that WEB/M2M confidential ApplicationClient; required for server-side permission resolution, codegen, and upload |
-| `Audience` | `ClientID` | Expected `aud` claim |
+| `Audience` | — | `Application.resourceAudience`, expected JWT `aud`; required for `New`, never inferred from `ClientID` |
 | `Issuer` | `Endpoint` | Expected `iss` claim |
 | `JWKSRefresh` | `1h` | JWKS cache TTL |
 | `PermissionCacheTTL` | `5m` | role→perms cache TTL |
