@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"sync"
@@ -14,13 +13,13 @@ import (
 )
 
 // JWKSProvider fetches the IAM server's JSON Web Key Set and caches it with
-// background refresh. It is safe for concurrent use.
+// lazy, coalesced refresh. It is safe for concurrent use.
 type JWKSProvider struct {
 	jwksURL string
 	http    *http.Client
 	refresh time.Duration
 
-	mu        sync.RWMutex
+	mu        sync.Mutex
 	set       *jose.JSONWebKeySet
 	lastFetch time.Time
 
@@ -28,13 +27,20 @@ type JWKSProvider struct {
 	// key-rotation events (see KeyByID).
 	lastForcedRefresh time.Time
 	cooldown          time.Duration
+	lastRefreshError  error
+	refreshing        *jwksRefresh
+}
+
+type jwksRefresh struct {
+	done chan struct{}
+	err  error
 }
 
 // JWKSOptions configures a JWKSProvider.
 type JWKSOptions struct {
-	URL            string
-	Client         *http.Client
-	Refresh        time.Duration
+	URL              string
+	Client           *http.Client
+	Refresh          time.Duration
 	RotationCooldown time.Duration
 }
 
@@ -63,37 +69,25 @@ func NewJWKSProvider(opts JWKSOptions) (*JWKSProvider, error) {
 
 // Preload fetches and caches the JWKS synchronously.
 func (p *JWKSProvider) Preload(ctx context.Context) error {
-	_, err := p.fetch(ctx)
-	return err
+	return p.refreshKeys(ctx, "", true)
 }
 
 // KeyByID returns the key matching kid. If the key is absent, the provider
 // force-refreshes once (subject to a cooldown) to pick up rotated keys.
 func (p *JWKSProvider) KeyByID(ctx context.Context, kid string) (*jose.JSONWebKey, error) {
-	if k := p.lookup(kid); k != nil {
-		return k, nil
-	}
-	// force refresh once to handle rotation
-	p.mu.Lock()
-	if time.Since(p.lastForcedRefresh) < p.cooldown {
-		p.mu.Unlock()
-		return nil, fmt.Errorf("iamjwt: unknown kid %q (rotation cooldown active)", kid)
-	}
-	p.lastForcedRefresh = time.Now()
-	p.mu.Unlock()
-
-	if _, err := p.fetch(ctx); err != nil {
+	if err := p.refreshKeys(ctx, kid, false); err != nil {
 		return nil, err
 	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
 	if k := p.lookup(kid); k != nil {
 		return k, nil
 	}
-	return nil, fmt.Errorf("iamjwt: unknown kid %q", kid)
+	return nil, verificationError(ErrUnknownKey, nil)
 }
 
+// lookup requires p.mu; published key sets are immutable.
 func (p *JWKSProvider) lookup(kid string) *jose.JSONWebKey {
-	p.mu.RLock()
-	defer p.mu.RUnlock()
 	if p.set == nil {
 		return nil
 	}
@@ -102,7 +96,8 @@ func (p *JWKSProvider) lookup(kid string) *jose.JSONWebKey {
 	}
 	for i := range p.set.Keys {
 		if p.set.Keys[i].KeyID == kid {
-			return &p.set.Keys[i]
+			key := p.set.Keys[i]
+			return &key
 		}
 	}
 	return nil
@@ -112,30 +107,79 @@ func (p *JWKSProvider) needsRefresh() bool {
 	return time.Since(p.lastFetch) > p.refresh
 }
 
+func (p *JWKSProvider) refreshKeys(ctx context.Context, kid string, preload bool) error {
+	if err := ctx.Err(); err != nil {
+		return verificationError(ErrJWKSFetch, err)
+	}
+	p.mu.Lock()
+	if !preload && p.lookup(kid) != nil {
+		p.mu.Unlock()
+		return nil
+	}
+	if pending := p.refreshing; pending != nil {
+		p.mu.Unlock()
+		select {
+		case <-ctx.Done():
+			return verificationError(ErrJWKSFetch, ctx.Err())
+		case <-pending.done:
+			return pending.err
+		}
+	}
+	if !preload && time.Since(p.lastForcedRefresh) < p.cooldown &&
+		(p.lastRefreshError != nil || !p.needsRefresh()) {
+		err := p.lastRefreshError
+		p.mu.Unlock()
+		return err
+	}
+	pending := &jwksRefresh{done: make(chan struct{})}
+	p.refreshing = pending
+	p.mu.Unlock()
+
+	set, err := p.fetch(ctx)
+	p.mu.Lock()
+	if err == nil {
+		p.set = set
+		p.lastFetch = time.Now()
+	}
+	p.lastRefreshError = err
+	pending.err = err
+	if !preload || err != nil {
+		p.lastForcedRefresh = time.Now()
+	}
+	p.refreshing = nil
+	close(pending.done)
+	p.mu.Unlock()
+	return err
+}
+
 func (p *JWKSProvider) fetch(ctx context.Context) (*jose.JSONWebKeySet, error) {
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet, p.jwksURL, nil)
 	if err != nil {
-		return nil, err
+		return nil, verificationError(ErrJWKSFetch, err)
 	}
 	resp, err := p.http.Do(req)
 	if err != nil {
-		return nil, err
+		return nil, verificationError(ErrJWKSFetch, err)
 	}
-	defer resp.Body.Close()
-	if resp.StatusCode >= 400 {
-		return nil, fmt.Errorf("iamjwt: jwks fetch failed: %s", resp.Status)
+	// Preserve the fetch/read error while always releasing the response body.
+	defer func() { _ = resp.Body.Close() }()
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, verificationError(ErrJWKSFetch, &JWKSStatusError{StatusCode: resp.StatusCode})
 	}
-	body, err := io.ReadAll(resp.Body)
+	const maxJWKSBytes = 1 << 20
+	body, err := io.ReadAll(io.LimitReader(resp.Body, maxJWKSBytes+1))
 	if err != nil {
-		return nil, err
+		return nil, verificationError(ErrJWKSFetch, err)
+	}
+	if len(body) > maxJWKSBytes {
+		return nil, verificationError(ErrJWKSFetch, errors.New("JWKS response exceeds size limit"))
 	}
 	var set jose.JSONWebKeySet
 	if err := json.Unmarshal(body, &set); err != nil {
-		return nil, err
+		return nil, verificationError(ErrJWKSParse, err)
 	}
-	p.mu.Lock()
-	p.set = &set
-	p.lastFetch = time.Now()
-	p.mu.Unlock()
+	if set.Keys == nil {
+		return nil, verificationError(ErrJWKSParse, errors.New("JWKS keys array missing"))
+	}
 	return &set, nil
 }

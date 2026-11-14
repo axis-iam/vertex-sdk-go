@@ -13,6 +13,7 @@ var organizationManagementUUID = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]
 // OrganizationMemberRole is the Organization role returned and accepted by the Open API.
 type OrganizationMemberRole string
 
+// Supported OrganizationMemberRole wire values.
 const (
 	OrganizationMemberRoleOwner  OrganizationMemberRole = "OWNER"
 	OrganizationMemberRoleAdmin  OrganizationMemberRole = "ADMIN"
@@ -22,6 +23,7 @@ const (
 // OrganizationInvitationStatus is an Organization invitation lifecycle state.
 type OrganizationInvitationStatus string
 
+// Supported OrganizationInvitationStatus wire values.
 const (
 	OrganizationInvitationPending   OrganizationInvitationStatus = "PENDING"
 	OrganizationInvitationAccepted  OrganizationInvitationStatus = "ACCEPTED"
@@ -32,6 +34,7 @@ const (
 // OrganizationInvitationDeliveryStatus is the invitation email delivery outcome.
 type OrganizationInvitationDeliveryStatus string
 
+// Supported OrganizationInvitationDeliveryStatus wire values.
 const (
 	OrganizationInvitationDeliveryNotRequested OrganizationInvitationDeliveryStatus = "NOT_REQUESTED"
 	OrganizationInvitationDeliverySent         OrganizationInvitationDeliveryStatus = "SENT"
@@ -41,6 +44,7 @@ const (
 // OrganizationSortDirection controls Organization list sorting.
 type OrganizationSortDirection string
 
+// Supported OrganizationSortDirection wire values.
 const (
 	OrganizationSortAscending  OrganizationSortDirection = "ASC"
 	OrganizationSortDescending OrganizationSortDirection = "DESC"

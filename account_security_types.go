@@ -8,6 +8,7 @@ import (
 // MFAOperationType is an operation wire enum; unsupported response values fail closed.
 type MFAOperationType string
 
+// Supported MFAOperationType wire values.
 const (
 	MFAOperationTypeTOTPEnroll            MFAOperationType = "TOTP_ENROLL"
 	MFAOperationTypeTOTPDisable           MFAOperationType = "TOTP_DISABLE"
@@ -17,6 +18,7 @@ const (
 // MFAOperationState is an operation wire enum; unsupported response values fail closed.
 type MFAOperationState string
 
+// Supported MFAOperationState wire values.
 const (
 	MFAOperationStateAwaitingReauth       MFAOperationState = "AWAITING_REAUTH"
 	MFAOperationStateReady                MFAOperationState = "READY"
@@ -29,6 +31,7 @@ const (
 // ProofRequirement is an operation wire enum; unsupported response values fail closed.
 type ProofRequirement string
 
+// Supported ProofRequirement wire values.
 const (
 	ProofRequirementSession          ProofRequirement = "SESSION"
 	ProofRequirementReauthentication ProofRequirement = "REAUTHENTICATION"
@@ -38,6 +41,7 @@ const (
 // ProofMethod is an operation wire enum; unsupported response values fail closed.
 type ProofMethod string
 
+// Supported ProofMethod wire values.
 const (
 	ProofMethodPassword    ProofMethod = "PASSWORD"
 	ProofMethodEmailOTP    ProofMethod = "EMAIL_OTP"
@@ -48,6 +52,7 @@ const (
 // SessionImpact is an operation wire enum; unsupported response values fail closed.
 type SessionImpact string
 
+// Supported SessionImpact wire values.
 const (
 	SessionImpactUnchanged              SessionImpact = "UNCHANGED"
 	SessionImpactCurrentSessionRetained SessionImpact = "CURRENT_SESSION_RETAINED"
@@ -57,6 +62,7 @@ const (
 // SensitiveDelivery is an operation wire enum; unsupported response values fail closed.
 type SensitiveDelivery string
 
+// Supported SensitiveDelivery wire values.
 const (
 	SensitiveDeliveryAvailable        SensitiveDelivery = "AVAILABLE"
 	SensitiveDeliveryAlreadyDelivered SensitiveDelivery = "ALREADY_DELIVERED"
@@ -66,6 +72,7 @@ const (
 // IdentityOperationType is an operation wire enum; unsupported response values fail closed.
 type IdentityOperationType string
 
+// Supported IdentityOperationType wire values.
 const (
 	IdentityOperationTypeAdd           IdentityOperationType = "ADD"
 	IdentityOperationTypeVerify        IdentityOperationType = "VERIFY"
@@ -81,6 +88,7 @@ const (
 // IdentityOperationState is an operation wire enum; unsupported response values fail closed.
 type IdentityOperationState string
 
+// Supported IdentityOperationState wire values.
 const (
 	IdentityOperationStateAwaitingReauth IdentityOperationState = "AWAITING_REAUTH"
 	IdentityOperationStateAwaitingProof  IdentityOperationState = "AWAITING_PROOF"
@@ -94,6 +102,7 @@ const (
 // IdentifierKind is an operation wire enum; unsupported response values fail closed.
 type IdentifierKind string
 
+// Supported IdentifierKind wire values.
 const (
 	IdentifierKindUsername IdentifierKind = "USERNAME"
 	IdentifierKindEmail    IdentifierKind = "EMAIL"
@@ -103,6 +112,7 @@ const (
 // TargetProofMethod is an operation wire enum; unsupported response values fail closed.
 type TargetProofMethod string
 
+// Supported TargetProofMethod wire values.
 const (
 	TargetProofMethodEmailOTP TargetProofMethod = "EMAIL_OTP"
 	TargetProofMethodPhoneOTP TargetProofMethod = "PHONE_OTP"
@@ -111,6 +121,7 @@ const (
 // AuthorizationPurpose is an operation wire enum; unsupported response values fail closed.
 type AuthorizationPurpose string
 
+// Supported AuthorizationPurpose wire values.
 const (
 	AuthorizationPurposeCurrentAccount      AuthorizationPurpose = "CURRENT_ACCOUNT"
 	AuthorizationPurposeTargetOwnership     AuthorizationPurpose = "TARGET_OWNERSHIP"
@@ -120,6 +131,7 @@ const (
 // TransferDecision is an operation wire enum; unsupported response values fail closed.
 type TransferDecision string
 
+// Supported TransferDecision wire values.
 const (
 	TransferDecisionAccept TransferDecision = "ACCEPT"
 	TransferDecisionReject TransferDecision = "REJECT"
@@ -196,7 +208,9 @@ type TOTPMaterial struct {
 	Issuer    string `json:"issuer"`
 }
 
-func (TOTPMaterial) String() string   { return "TOTPMaterial[redacted]" }
+func (TOTPMaterial) String() string { return "TOTPMaterial[redacted]" }
+
+// GoString returns a redacted Go-syntax representation.
 func (TOTPMaterial) GoString() string { return "TOTPMaterial[redacted]" }
 
 // TOTPBeginResult mirrors the current-user producer contract.
@@ -206,7 +220,9 @@ type TOTPBeginResult struct {
 	Material  *TOTPMaterial     `json:"material,omitempty" wire:"optional"`
 }
 
-func (TOTPBeginResult) String() string   { return "TOTPBeginResult[redacted]" }
+func (TOTPBeginResult) String() string { return "TOTPBeginResult[redacted]" }
+
+// GoString returns a redacted Go-syntax representation.
 func (TOTPBeginResult) GoString() string { return "TOTPBeginResult[redacted]" }
 
 // RecoveryCodes mirrors the current-user producer contract.
@@ -215,7 +231,9 @@ type RecoveryCodes struct {
 	Count int64    `json:"count"`
 }
 
-func (RecoveryCodes) String() string   { return "RecoveryCodes[redacted]" }
+func (RecoveryCodes) String() string { return "RecoveryCodes[redacted]" }
+
+// GoString returns a redacted Go-syntax representation.
 func (RecoveryCodes) GoString() string { return "RecoveryCodes[redacted]" }
 
 // MFACompletionResult mirrors the current-user producer contract.
@@ -225,7 +243,9 @@ type MFACompletionResult struct {
 	RecoveryCodes *RecoveryCodes    `json:"recoveryCodes,omitempty" wire:"optional"`
 }
 
-func (MFACompletionResult) String() string   { return "MFACompletionResult[redacted]" }
+func (MFACompletionResult) String() string { return "MFACompletionResult[redacted]" }
+
+// GoString returns a redacted Go-syntax representation.
 func (MFACompletionResult) GoString() string { return "MFACompletionResult[redacted]" }
 
 // MFAChallengeResult mirrors the current-user producer contract.
@@ -243,7 +263,7 @@ type IdentityRequiredProof struct {
 	Satisfied bool     `json:"satisfied"`
 }
 
-// IdentityOperation mirrors the current-user producer contract.
+// ProviderTarget is the masked provider identity offered by the producer.
 type ProviderTarget struct {
 	ProviderID        string  `json:"providerId"`
 	MaskedDisplayName *string `json:"maskedDisplayName,omitempty"`
@@ -251,6 +271,7 @@ type ProviderTarget struct {
 	Reference         string  `json:"reference"`
 }
 
+// IdentityOperation mirrors the current-user producer contract.
 type IdentityOperation struct {
 	ID               string                  `json:"id"`
 	Type             IdentityOperationType   `json:"type"`
@@ -429,7 +450,9 @@ type PasswordReauthentication struct {
 
 func (PasswordReauthentication) reauthentication() {}
 func (PasswordReauthentication) String() string    { return "PasswordReauthentication[redacted]" }
-func (PasswordReauthentication) GoString() string  { return "PasswordReauthentication[redacted]" }
+
+// GoString returns a redacted Go-syntax representation.
+func (PasswordReauthentication) GoString() string { return "PasswordReauthentication[redacted]" }
 
 // EmailOTPReauthentication mirrors the current-user producer contract.
 type EmailOTPReauthentication struct {
@@ -439,7 +462,9 @@ type EmailOTPReauthentication struct {
 
 func (EmailOTPReauthentication) reauthentication() {}
 func (EmailOTPReauthentication) String() string    { return "EmailOTPReauthentication[redacted]" }
-func (EmailOTPReauthentication) GoString() string  { return "EmailOTPReauthentication[redacted]" }
+
+// GoString returns a redacted Go-syntax representation.
+func (EmailOTPReauthentication) GoString() string { return "EmailOTPReauthentication[redacted]" }
 
 // OperationStepUpVerify mirrors the current-user producer contract.
 type OperationStepUpVerify struct {
@@ -447,7 +472,9 @@ type OperationStepUpVerify struct {
 	Code        string `json:"code"`
 }
 
-func (OperationStepUpVerify) String() string   { return "OperationStepUpVerify[redacted]" }
+func (OperationStepUpVerify) String() string { return "OperationStepUpVerify[redacted]" }
+
+// GoString returns a redacted Go-syntax representation.
 func (OperationStepUpVerify) GoString() string { return "OperationStepUpVerify[redacted]" }
 
 // OperationWebAuthnVerify mirrors the current-user producer contract.
@@ -457,7 +484,9 @@ type OperationWebAuthnVerify struct {
 	Credential  string `json:"credential"`
 }
 
-func (OperationWebAuthnVerify) String() string   { return "OperationWebAuthnVerify[redacted]" }
+func (OperationWebAuthnVerify) String() string { return "OperationWebAuthnVerify[redacted]" }
+
+// GoString returns a redacted Go-syntax representation.
 func (OperationWebAuthnVerify) GoString() string { return "OperationWebAuthnVerify[redacted]" }
 
 // ProviderExchange mirrors the current-user producer contract.
@@ -466,7 +495,9 @@ type ProviderExchange struct {
 	CodeVerifier    string `json:"codeVerifier"`
 }
 
-func (ProviderExchange) String() string   { return "ProviderExchange[redacted]" }
+func (ProviderExchange) String() string { return "ProviderExchange[redacted]" }
+
+// GoString returns a redacted Go-syntax representation.
 func (ProviderExchange) GoString() string { return "ProviderExchange[redacted]" }
 
 // MFAProviderAuthorize mirrors the current-user producer contract.
@@ -492,7 +523,9 @@ type IdentityTargetProof struct {
 	Code   string            `json:"code"`
 }
 
-func (IdentityTargetProof) String() string   { return "IdentityTargetProof[redacted]" }
+func (IdentityTargetProof) String() string { return "IdentityTargetProof[redacted]" }
+
+// GoString returns a redacted Go-syntax representation.
 func (IdentityTargetProof) GoString() string { return "IdentityTargetProof[redacted]" }
 
 // IdentityOperationComplete mirrors the current-user producer contract.
@@ -500,7 +533,9 @@ type IdentityOperationComplete struct {
 	Proofs []IdentityTargetProof `json:"proofs"`
 }
 
-func (IdentityOperationComplete) String() string   { return "IdentityOperationComplete[redacted]" }
+func (IdentityOperationComplete) String() string { return "IdentityOperationComplete[redacted]" }
+
+// GoString returns a redacted Go-syntax representation.
 func (IdentityOperationComplete) GoString() string { return "IdentityOperationComplete[redacted]" }
 
 // IdentityOperationCreate derives its discriminator from the closed payload type.
@@ -509,6 +544,7 @@ type IdentityOperationCreate struct {
 	Payload                    IdentityPayload `json:"payload"`
 }
 
+// MarshalJSON includes the required wire discriminator for this closed request type.
 func (r IdentityOperationCreate) MarshalJSON() ([]byte, error) {
 	var kind IdentityOperationType
 	switch r.Payload.(type) {
@@ -537,6 +573,8 @@ func (r IdentityOperationCreate) MarshalJSON() ([]byte, error) {
 		Payload                    IdentityPayload       `json:"payload"`
 	}{kind, r.ExpectedLoginMethodVersion, r.Payload})
 }
+
+// MarshalJSON includes the required wire discriminator for this closed request type.
 func (r PasswordReauthentication) MarshalJSON() ([]byte, error) {
 	type raw PasswordReauthentication
 	return json.Marshal(struct {
@@ -544,6 +582,8 @@ func (r PasswordReauthentication) MarshalJSON() ([]byte, error) {
 		Discriminator string `json:"method"`
 	}{raw(r), "PASSWORD"})
 }
+
+// MarshalJSON includes the required wire discriminator for this closed request type.
 func (r EmailOTPReauthentication) MarshalJSON() ([]byte, error) {
 	type raw EmailOTPReauthentication
 	return json.Marshal(struct {
@@ -551,6 +591,8 @@ func (r EmailOTPReauthentication) MarshalJSON() ([]byte, error) {
 		Discriminator string `json:"method"`
 	}{raw(r), "EMAIL_OTP"})
 }
+
+// MarshalJSON includes the required wire discriminator for this closed request type.
 func (r IdentityTargetProof) MarshalJSON() ([]byte, error) {
 	type raw IdentityTargetProof
 	return json.Marshal(struct {
@@ -566,12 +608,17 @@ type IdentifierCapability struct {
 	Requirements          []IdentifierRequirement `json:"requirements"`
 	ReplacementPrimaryIDs []string                `json:"replacementPrimaryIds"`
 }
+
+// IdentifierManagement is the authenticated identifier capability and proof snapshot.
 type IdentifierManagement struct {
 	Add          map[IdentifierKind]IdentifierCapability `json:"add"`
 	ProofOptions []OperationProofOption                  `json:"proofOptions"`
 }
+
+// IdentifierAction identifies a supported identifier mutation.
 type IdentifierAction string
 
+// Supported IdentifierAction wire values.
 const (
 	IdentifierActionVerify     IdentifierAction = "VERIFY"
 	IdentifierActionSetPrimary IdentifierAction = "SET_PRIMARY"
@@ -580,8 +627,10 @@ const (
 	IdentifierActionTransfer   IdentifierAction = "TRANSFER"
 )
 
+// IdentifierDenial explains why an identifier capability is unavailable.
 type IdentifierDenial string
 
+// Supported IdentifierDenial wire values.
 const (
 	IdentifierDenialAccountInactive               IdentifierDenial = "ACCOUNT_INACTIVE"
 	IdentifierDenialManagedIdentifier             IdentifierDenial = "MANAGED_IDENTIFIER"
@@ -598,8 +647,10 @@ const (
 	IdentifierDenialPrimaryReplacementUnavailable IdentifierDenial = "PRIMARY_REPLACEMENT_UNAVAILABLE"
 )
 
+// IdentifierRequirement names a required proof or remaining login path.
 type IdentifierRequirement string
 
+// Supported IdentifierRequirement wire values.
 const (
 	IdentifierRequirementCurrentAccountProof     IdentifierRequirement = "CURRENT_ACCOUNT_PROOF"
 	IdentifierRequirementNewIdentifier           IdentifierRequirement = "NEW_IDENTIFIER"

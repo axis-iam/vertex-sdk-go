@@ -8,17 +8,17 @@ import (
 // registered claims (iss, aud, sub, exp, ...).
 type Claims struct {
 	jwt.Claims
-	AppID       string   `json:"app_id,omitempty"`
-	Email       string   `json:"email,omitempty"`
-	WorkspaceID string   `json:"workspace_id,omitempty"`
-	OrgID       string   `json:"org_id,omitempty"`
-	OrgSlug     string   `json:"org_slug,omitempty"`
-	OrgRole     string   `json:"org_role,omitempty"`
-	Roles       []string `json:"roles,omitempty"`
-	AMR         []string `json:"amr,omitempty"`
-	ACR         string   `json:"acr,omitempty"`
-	SessionID   string   `json:"sid,omitempty"`
-	Actor       *Actor   `json:"act,omitempty"`
+	AppID       string         `json:"app_id,omitempty"`
+	Email       string         `json:"email,omitempty"`
+	WorkspaceID string         `json:"workspace_id,omitempty"`
+	OrgID       string         `json:"org_id,omitempty"`
+	OrgSlug     string         `json:"org_slug,omitempty"`
+	OrgRole     string         `json:"org_role,omitempty"`
+	Roles       []string       `json:"roles,omitempty"`
+	AMR         []string       `json:"amr,omitempty"`
+	ACR         string         `json:"acr,omitempty"`
+	SessionID   string         `json:"sid,omitempty"`
+	Actor       *Actor         `json:"act,omitempty"`
 	Extra       map[string]any `json:"-"`
 }
 

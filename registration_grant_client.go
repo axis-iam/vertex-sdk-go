@@ -14,6 +14,7 @@ var registrationGrantUUID = regexp.MustCompile(`^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[
 // RegistrationGrantType is one safe registration-grant type returned by the API.
 type RegistrationGrantType string
 
+// Supported RegistrationGrantType wire values.
 const (
 	RegistrationGrantEmailLink     RegistrationGrantType = "EMAIL_LINK"
 	RegistrationGrantAccessCode    RegistrationGrantType = "ACCESS_CODE"
@@ -23,6 +24,7 @@ const (
 // RegistrationGrantStatus is a safe lifecycle status returned by iam-portal.
 type RegistrationGrantStatus string
 
+// Supported RegistrationGrantStatus wire values.
 const (
 	RegistrationGrantActive   RegistrationGrantStatus = "ACTIVE"
 	RegistrationGrantPaused   RegistrationGrantStatus = "PAUSED"
@@ -50,14 +52,16 @@ type RegistrationGrant struct {
 	RevokeReason  *string                 `json:"revokeReason"`
 }
 
-// CreateRegistrationGrantRequest describes a manual EMAIL_LINK or ACCESS_CODE grant.
+// CreateRegistrationGrantType selects a manual EMAIL_LINK or ACCESS_CODE grant.
 type CreateRegistrationGrantType string
 
+// Supported CreateRegistrationGrantType wire values.
 const (
 	CreateRegistrationGrantEmailLink  CreateRegistrationGrantType = "EMAIL_LINK"
 	CreateRegistrationGrantAccessCode CreateRegistrationGrantType = "ACCESS_CODE"
 )
 
+// CreateRegistrationGrantRequest describes a manual EMAIL_LINK or ACCESS_CODE grant.
 type CreateRegistrationGrantRequest struct {
 	Type          CreateRegistrationGrantType `json:"type"`
 	DisplayName   *string                     `json:"displayName,omitempty"`

@@ -22,11 +22,13 @@ type CurrentUser struct {
 	Metadata              map[string]json.RawMessage `json:"metadata"`
 }
 
+// ImpersonationContext identifies the actor and impersonation session.
 type ImpersonationContext struct {
 	ActorID         string `json:"actorId"`
 	ImpersonationID string `json:"impersonationId"`
 }
 
+// AuthenticationContext carries the authenticated subject and Application bindings.
 type AuthenticationContext struct {
 	SubjectType                string                `json:"subjectType"`
 	ApplicationID              string                `json:"applicationId"`
@@ -69,7 +71,8 @@ func (c *Client) GetCurrentUser(ctx context.Context, accessToken string) (*Curre
 		}
 		return nil, errors.New("iam: current-user transport failed")
 	}
-	defer res.Body.Close()
+	// Preserve the public response/read error; Close still releases the transport.
+	defer func() { _ = res.Body.Close() }()
 	if res.StatusCode < 200 || res.StatusCode >= 300 {
 		return nil, &CurrentUserError{Status: res.StatusCode}
 	}

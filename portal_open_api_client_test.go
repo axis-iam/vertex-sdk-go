@@ -948,7 +948,7 @@ func TestRegistrationInvitationRejectsKeysAndSecretReplay(t *testing.T) {
 	if len(server.tokenRequests) != 0 || len(server.portalRequests) != 0 {
 		t.Fatal("invalid key made a network call")
 	}
-	server.portalResponse = func(req portalOpenAPIResourceRequest) (int, any) {
+	server.portalResponse = func(_ portalOpenAPIResourceRequest) (int, any) {
 		return http.StatusCreated, map[string]any{"grant": registrationGrantJSON("EMAIL_LINK"), "secretAlreadyIssued": true, "registrationGrantToken": "must-not-leak"}
 	}
 	_, err := client.CreateRegistrationGrant(context.Background(), iam.CreateRegistrationGrantRequest{Type: iam.CreateRegistrationGrantEmailLink}, "same-key")
@@ -971,7 +971,7 @@ func TestRegistrationInvitationRejectsMissingDeliveryScalarsWithoutRetry(t *test
 			"variant": "LINK", "status": "QUEUED", "attemptCount": 0, "retryable": false,
 			"createdAt": "2026-10-31T00:00:00Z", "expiresAt": "2026-11-01T00:00:00Z"}
 		delete(body, field)
-		server.portalResponse = func(req portalOpenAPIResourceRequest) (int, any) { return http.StatusOK, body }
+		server.portalResponse = func(_ portalOpenAPIResourceRequest) (int, any) { return http.StatusOK, body }
 		if _, err := client.GetRegistrationGrantDelivery(context.Background(), id, deliveryID); err == nil {
 			t.Fatalf("accepted delivery missing %s", field)
 		}

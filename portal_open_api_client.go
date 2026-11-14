@@ -302,7 +302,8 @@ func (c *PortalOpenAPIClient) requestJSONWithScopeAndHeaders(
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	// Release transport resources without replacing the public read/status outcome.
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 400 {
 		return nil, portalOpenAPIErrorFromResponse(resp)
 	}
@@ -332,7 +333,8 @@ func (c *PortalOpenAPIClient) requestMachineToken(ctx context.Context, scope Por
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	// Release transport resources without replacing the public read/status outcome.
+	defer func() { _ = resp.Body.Close() }()
 
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {

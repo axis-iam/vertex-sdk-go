@@ -587,7 +587,8 @@ func (c *Client) JWKS(ctx context.Context, jwksURL string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	// Close releases the response; read/decode errors remain the public outcome.
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("iam: jwks fetch failed: %s", resp.Status)
 	}
@@ -612,25 +613,22 @@ func (e *APIError) IsRetryable() bool {
 	return e.Status == http.StatusTooManyRequests || e.Status >= 500
 }
 
-func (c *Client) doJSONRetry(ctx context.Context, method, path string, body any, out any) error {
-	op := func() error { return c.doJSON(ctx, method, path, body, out) }
-	b := backoff.WithContext(backoff.WithMaxRetries(exponentialBackoff(), uint64(c.cfg.MaxRetries)), ctx)
-	return backoff.Retry(func() error {
-		err := op()
-		if err == nil {
-			return nil
-		}
-		var apiErr *APIError
-		if errors.As(err, &apiErr) && !apiErr.IsRetryable() {
-			return backoff.Permanent(err)
-		}
-		return err
-	}, b)
+// Config.Validate supplies the supported default; this boundary prevents a mutated
+// negative int from becoming an enormous unsigned retry budget.
+func validatedRetryCount(maxRetries int) (uint64, error) {
+	if maxRetries < 0 {
+		return 0, errors.New("iam: MaxRetries must not be negative")
+	}
+	return uint64(maxRetries), nil
 }
 
 func (c *Client) doJSONStrictRetry(ctx context.Context, method, path string, body any, out any) error {
 	op := func() error { return c.doJSONStrict(ctx, method, path, body, out) }
-	b := backoff.WithContext(backoff.WithMaxRetries(exponentialBackoff(), uint64(c.cfg.MaxRetries)), ctx)
+	retries, err := validatedRetryCount(c.cfg.MaxRetries)
+	if err != nil {
+		return err
+	}
+	b := backoff.WithContext(backoff.WithMaxRetries(exponentialBackoff(), retries), ctx)
 	return backoff.Retry(func() error {
 		if err := ctx.Err(); err != nil {
 			return backoff.Permanent(err)
@@ -659,7 +657,11 @@ func (c *Client) doJSONStrictRetry(ctx context.Context, method, path string, bod
 
 func (c *Client) doJSONNoAuthRetry(ctx context.Context, method, path string, body any, out any) error {
 	op := func() error { return c.doJSONWithAuth(ctx, method, path, body, out, func(*http.Request) {}) }
-	b := backoff.WithContext(backoff.WithMaxRetries(exponentialBackoff(), uint64(c.cfg.MaxRetries)), ctx)
+	retries, err := validatedRetryCount(c.cfg.MaxRetries)
+	if err != nil {
+		return err
+	}
+	b := backoff.WithContext(backoff.WithMaxRetries(exponentialBackoff(), retries), ctx)
 	return backoff.Retry(func() error {
 		err := op()
 		if err == nil {
@@ -675,7 +677,11 @@ func (c *Client) doJSONNoAuthRetry(ctx context.Context, method, path string, bod
 
 func (c *Client) doJSONBearerRetry(ctx context.Context, method, path, token string, body any, out any) error {
 	op := func() error { return c.doJSONBearer(ctx, method, path, token, body, out) }
-	b := backoff.WithContext(backoff.WithMaxRetries(exponentialBackoff(), uint64(c.cfg.MaxRetries)), ctx)
+	retries, err := validatedRetryCount(c.cfg.MaxRetries)
+	if err != nil {
+		return err
+	}
+	b := backoff.WithContext(backoff.WithMaxRetries(exponentialBackoff(), retries), ctx)
 	return backoff.Retry(func() error {
 		err := op()
 		if err == nil {
@@ -687,10 +693,6 @@ func (c *Client) doJSONBearerRetry(ctx context.Context, method, path, token stri
 		}
 		return err
 	}, b)
-}
-
-func (c *Client) doJSON(ctx context.Context, method, path string, body any, out any) error {
-	return c.doJSONWithAuth(ctx, method, path, body, out, c.signRequest)
 }
 
 func (c *Client) doJSONStrict(ctx context.Context, method, path string, body any, out any) error {
@@ -715,7 +717,8 @@ func (c *Client) doJSONStrict(ctx context.Context, method, path string, body any
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	// Close releases the response; read/decode errors remain the public outcome.
+	defer func() { _ = resp.Body.Close() }()
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
@@ -758,7 +761,8 @@ func (c *Client) doJSONWithAuth(ctx context.Context, method, path string, body a
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	// Close releases the response; read/decode errors remain the public outcome.
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 400 {
 		data, _ := io.ReadAll(resp.Body)
 		return &APIError{Status: resp.StatusCode, Body: string(data)}

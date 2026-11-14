@@ -243,7 +243,7 @@ func TestAccountSecurityOperations(t *testing.T) {
 			string(committedRaw), cancelled,
 		}
 		count := 0
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			count++
 			w.Header().Set("Content-Type", "application/json")
 			_, _ = io.WriteString(w, replies[0])

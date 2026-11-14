@@ -150,7 +150,7 @@ func TestPermissionManifestTokenErrorNeverUsesIssuerDescription(t *testing.T) {
 
 func TestPermissionManifestSharedBudgetRedactsTokenAndRequiresFields(t *testing.T) {
 	var calls int
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		calls++
 		if calls < 3 {
 			w.WriteHeader(503)

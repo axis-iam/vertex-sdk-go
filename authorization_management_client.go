@@ -265,7 +265,7 @@ func (c *PortalOpenAPIClient) ListRoles(ctx context.Context, options Authorizati
 		}
 	}
 	out := RolePage{Content: content, Page: page}
-	if err = validateAuthorizationPage(nil, len(out.Content), out.Page); err == nil {
+	if err = validateAuthorizationPage(len(out.Content), out.Page); err == nil {
 		for _, item := range out.Content {
 			if err = validateRoleItem(item); err != nil {
 				break
@@ -449,7 +449,7 @@ func (c *PortalOpenAPIClient) ListRolePermissions(ctx context.Context, roleID st
 		out.ETag, err = strongETag(h)
 	}
 	if err == nil {
-		err = validateAuthorizationPage(nil, len(out.Content), out.Page)
+		err = validateAuthorizationPage(len(out.Content), out.Page)
 	}
 	if err == nil {
 		for _, item := range out.Content {
@@ -524,7 +524,7 @@ func (c *PortalOpenAPIClient) ListUserRoles(ctx context.Context, userID string, 
 	}
 	out := UserRoleAssignmentPage{Content: content, Page: page}
 	if err == nil {
-		err = validateAuthorizationPage(nil, len(out.Content), out.Page)
+		err = validateAuthorizationPage(len(out.Content), out.Page)
 	}
 	if err == nil {
 		for _, item := range out.Content {
@@ -672,10 +672,7 @@ func validateIfMatch(value string) error {
 func invalidAuthorizationResponse() error {
 	return &PortalOpenAPIError{Code: "invalid_authorization_response"}
 }
-func validateAuthorizationPage(err error, count int, p AuthorizationPageMetadata) error {
-	if err != nil {
-		return err
-	}
+func validateAuthorizationPage(count int, p AuthorizationPageMetadata) error {
 	if p.Size < 1 || p.Size > 100 {
 		return invalidAuthorizationResponse()
 	}
@@ -731,7 +728,7 @@ func permissionWithETagForID(v *Permission, h http.Header, err error, expectedID
 	return result, err
 }
 func validatePermissionPage(p PermissionPage) error {
-	if err := validateAuthorizationPage(nil, len(p.Content), p.Page); err != nil {
+	if err := validateAuthorizationPage(len(p.Content), p.Page); err != nil {
 		return err
 	}
 	for _, item := range p.Content {

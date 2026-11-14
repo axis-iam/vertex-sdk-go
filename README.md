@@ -6,6 +6,24 @@ Go SDK for the [Axis Vertex](https://github.com/axis-iam/vertex) Application Ide
 verification, role→permission resolution with local caching, and drop-in
 middleware for `net/http`, `chi`, `gin`, and `echo`.
 
+## Verification errors and dependency failures
+
+The `jwt` package exposes `ErrInvalidToken`, `ErrUnknownKey`, `ErrJWKSFetch`,
+and `ErrJWKSParse` for `errors.Is`. `errors.As` can inspect `*VerificationError`
+and its wrapped cause, including context cancellation, transport errors, JSON
+syntax errors, and `*JWKSStatusError`.
+
+Authentication middleware returns `401 UNAUTHORIZED` for malformed tokens,
+invalid signatures or claims, and keys absent after a successful JWKS fetch.
+It returns `503 AUTH_DEPENDENCY_UNAVAILABLE` when verification needs a missing
+or stale key and JWKS retrieval or parsing fails. Responses contain stable,
+non-sensitive messages; inspect errors internally for diagnostics.
+
+Refreshes are coalesced within each provider. Failed-refresh cooldown requests
+retain the dependency error, while a fresh cached key remains usable even when
+refreshing for another key fails. A stale cached key never bypasses verification.
+The same behavior applies through the chi, gin, and echo adapters.
+
 ## Permission manifest synchronization
 
 Use an explicit structured manifest with separate issuer/Portal endpoints. Startup defaults disabled; CI validate,

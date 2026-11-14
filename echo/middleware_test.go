@@ -1,14 +1,15 @@
 package iamecho_test
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
 	iam "github.com/axis-iam/vertex-sdk-go"
 	"github.com/axis-iam/vertex-sdk-go/authz"
 	iamecho "github.com/axis-iam/vertex-sdk-go/echo"
 	"github.com/axis-iam/vertex-sdk-go/iamtest"
 	"github.com/labstack/echo/v4"
-	"net/http"
-	"net/http/httptest"
-	"testing"
 )
 
 func TestResourceAudienceContract(t *testing.T) {

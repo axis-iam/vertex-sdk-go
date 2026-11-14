@@ -1,14 +1,15 @@
 package iamchi_test
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
 	iam "github.com/axis-iam/vertex-sdk-go"
 	"github.com/axis-iam/vertex-sdk-go/authz"
 	iamchi "github.com/axis-iam/vertex-sdk-go/chi"
 	"github.com/axis-iam/vertex-sdk-go/iamtest"
 	"github.com/go-chi/chi/v5"
-	"net/http"
-	"net/http/httptest"
-	"testing"
 )
 
 func TestResourceAudienceContract(t *testing.T) {

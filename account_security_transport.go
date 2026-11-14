@@ -133,7 +133,7 @@ func validateSecurityRequest(request any) error {
 			if _, ok := securityEnums[item.Type().Name()]; ok && !securityEnum(value, item.Type().Name()) {
 				return securityInputError()
 			}
-			if strings.HasSuffix(f.Name, "ID") && f.Name != "MethodID" && f.Name != "RequestID" && !(f.Name == "ChallengeID" && t.Name() != "EmailOTPReauthentication") && !securityUUID.MatchString(value) {
+			if strings.HasSuffix(f.Name, "ID") && f.Name != "MethodID" && f.Name != "RequestID" && (f.Name != "ChallengeID" || t.Name() == "EmailOTPReauthentication") && !securityUUID.MatchString(value) {
 				return securityInputError()
 			}
 			if f.Name == "Code" && !securityCode.MatchString(value) {
@@ -216,7 +216,8 @@ func (c *Client) accountSecurityRequest(ctx context.Context, method, path, token
 	if err != nil {
 		return &AccountSecurityTransportError{OutcomeUnknown: method != "GET", cause: err}
 	}
-	defer response.Body.Close()
+	// A close error must not replace the response read/protocol outcome.
+	defer func() { _ = response.Body.Close() }()
 	raw, err = io.ReadAll(io.LimitReader(response.Body, 1048577))
 	if err != nil {
 		return &AccountSecurityTransportError{OutcomeUnknown: method != "GET", cause: err}

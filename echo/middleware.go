@@ -95,4 +95,6 @@ func RequireNoImpersonation() echo.MiddlewareFunc {
 	}
 }
 
-func errPayload(code, message string) map[string]string { return map[string]string{"code": code, "message": message} }
+func errPayload(code, message string) map[string]string {
+	return map[string]string{"code": code, "message": message}
+}

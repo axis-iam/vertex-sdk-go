@@ -49,7 +49,7 @@ func TestAuth_MissingHeader(t *testing.T) {
 
 	req := httptest.NewRequest("GET", "/", nil)
 	rec := httptest.NewRecorder()
-	mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { t.Fatal("should not reach") })).ServeHTTP(rec, req)
+	mw(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) { t.Fatal("should not reach") })).ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("want 401, got %d", rec.Code)
 	}
@@ -83,7 +83,7 @@ func TestAuth_Valid(t *testing.T) {
 	rec := httptest.NewRecorder()
 
 	reached := false
-	mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mw(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		reached = true
 		u := authz.FromContext(r.Context())
 		if u == nil || u.Subject != "u1" {
@@ -111,7 +111,7 @@ func TestRequirePerm(t *testing.T) {
 	req := httptest.NewRequest("POST", "/", nil)
 	req.Header.Set("Authorization", "Bearer "+tok)
 	rec := httptest.NewRecorder()
-	auth(requireWrite(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) }))).ServeHTTP(rec, req)
+	auth(requireWrite(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(204) }))).ServeHTTP(rec, req)
 	if rec.Code != 204 {
 		t.Fatalf("admin should pass, got %d", rec.Code)
 	}
@@ -136,11 +136,11 @@ func TestRequireAnyPerm(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	req.Header.Set("Authorization", "Bearer "+tok)
 	rec := httptest.NewRecorder()
-	any := middleware.RequireAnyPerm([]authz.PermissionKey{
+	anyPermission := middleware.RequireAnyPerm([]authz.PermissionKey{
 		{Resource: "posts", Action: "read"},
 		{Resource: "posts", Action: "write"},
 	})
-	auth(any(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) }))).ServeHTTP(rec, req)
+	auth(anyPermission(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(204) }))).ServeHTTP(rec, req)
 	if rec.Code != 204 {
 		t.Fatalf("want 204, got %d", rec.Code)
 	}
@@ -158,7 +158,7 @@ func TestRequireAllPerms(t *testing.T) {
 	req := httptest.NewRequest("POST", "/", nil)
 	req.Header.Set("Authorization", "Bearer "+tok)
 	rec := httptest.NewRecorder()
-	auth(all(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) }))).ServeHTTP(rec, req)
+	auth(all(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(204) }))).ServeHTTP(rec, req)
 	if rec.Code != 204 {
 		t.Fatalf("want 204, got %d", rec.Code)
 	}
@@ -201,7 +201,7 @@ func TestRequireStepUp(t *testing.T) {
 	req2 := httptest.NewRequest("POST", "/transfer", nil)
 	req2.Header.Set("Authorization", "Bearer "+tok2)
 	rec2 := httptest.NewRecorder()
-	auth(mfa(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) }))).ServeHTTP(rec2, req2)
+	auth(mfa(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(204) }))).ServeHTTP(rec2, req2)
 	if rec2.Code != 204 {
 		t.Fatalf("want 204, got %d", rec2.Code)
 	}

@@ -14,7 +14,9 @@ import (
 
 func main() {
 	if len(os.Args) < 2 {
-		usage()
+		if err := usage(); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+		}
 		os.Exit(2)
 	}
 	var err error
@@ -24,12 +26,14 @@ func main() {
 	case "upload":
 		err = runUpload(os.Args[2:])
 	case "help", "-h", "--help":
-		usage()
+		err = usage()
 	case "version":
 		fmt.Println("iam-codegen", version)
 	default:
 		fmt.Fprintf(os.Stderr, "unknown command: %s\n\n", os.Args[1])
-		usage()
+		if err := usage(); err != nil {
+			fmt.Fprintln(os.Stderr, "error:", err)
+		}
 		os.Exit(2)
 	}
 	if err != nil {
@@ -40,12 +44,12 @@ func main() {
 
 const version = "0.1.1"
 
-func usage() {
-	writeUsage(os.Stderr)
+func usage() error {
+	return writeUsage(os.Stderr)
 }
 
-func writeUsage(output io.Writer) {
-	fmt.Fprint(output, `iam-codegen — generate constants locally and publish structured manifests explicitly.
+func writeUsage(output io.Writer) error {
+	_, err := fmt.Fprint(output, `iam-codegen — generate constants locally and publish structured manifests explicitly.
 
 Usage:
   iam-codegen generate --manifest permissions.json --package perms \
@@ -68,4 +72,5 @@ Upload flags:
   --manifest       Structured permission manifest JSON file; no Go source scanning
   --mode           validate or upsert (upsert also requires --idempotency-key)
 `)
+	return err
 }

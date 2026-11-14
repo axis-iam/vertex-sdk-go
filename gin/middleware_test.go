@@ -1,14 +1,15 @@
 package iamgin_test
 
 import (
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
 	iam "github.com/axis-iam/vertex-sdk-go"
 	"github.com/axis-iam/vertex-sdk-go/authz"
 	iamgin "github.com/axis-iam/vertex-sdk-go/gin"
 	"github.com/axis-iam/vertex-sdk-go/iamtest"
 	"github.com/gin-gonic/gin"
-	"net/http"
-	"net/http/httptest"
-	"testing"
 )
 
 func TestResourceAudienceContract(t *testing.T) {

@@ -319,7 +319,8 @@ func discoverJWKS(ctx context.Context, client *Client) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	defer resp.Body.Close()
+	// Release transport resources without replacing the public read/status outcome.
+	defer func() { _ = resp.Body.Close() }()
 	if resp.StatusCode >= 400 {
 		return "", fmt.Errorf("openid discovery: %s", resp.Status)
 	}

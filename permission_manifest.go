@@ -25,15 +25,19 @@ import (
 	"golang.org/x/text/unicode/norm"
 )
 
+// PermissionsSyncScope authorizes structured permission manifest synchronization.
 const PermissionsSyncScope = "permissions:sync"
 
+// PermissionManifestMode selects validation-only or applied synchronization.
 type PermissionManifestMode string
 
+// Supported PermissionManifestMode values.
 const (
 	PermissionManifestValidate PermissionManifestMode = "validate"
 	PermissionManifestUpsert   PermissionManifestMode = "upsert"
 )
 
+// PermissionManifestDeclaration declares one concrete permission and its display metadata.
 type PermissionManifestDeclaration struct {
 	Resource    string  `json:"resource"`
 	Action      string  `json:"action"`
@@ -41,14 +45,17 @@ type PermissionManifestDeclaration struct {
 	Description *string `json:"description"`
 }
 
+// Key returns the exact resource:action permission key.
 func (d PermissionManifestDeclaration) Key() string { return d.Resource + ":" + d.Action }
 
+// PermissionManifest is a versioned set of structured permission declarations.
 type PermissionManifest struct {
 	ManifestID  string                          `json:"manifestId"`
 	Revision    string                          `json:"revision"`
 	Permissions []PermissionManifestDeclaration `json:"permissions"`
 }
 
+// PreparedPermissionManifest contains validated, sorted declarations and their canonical fingerprint.
 type PreparedPermissionManifest struct {
 	Mode        PermissionManifestMode          `json:"mode"`
 	ManifestID  string                          `json:"manifestId"`
@@ -57,18 +64,21 @@ type PreparedPermissionManifest struct {
 	Permissions []PermissionManifestDeclaration `json:"permissions"`
 }
 
+// PermissionManifestItem describes a synchronization decision for one permission key.
 type PermissionManifestItem struct {
 	Key       string `json:"key"`
 	Operation string `json:"operation"`
 	Reason    string `json:"reason"`
 }
 
+// PermissionManifestDrift describes a difference between a declaration and server state.
 type PermissionManifestDrift struct {
 	Key    string `json:"key"`
 	Kind   string `json:"kind"`
 	Source string `json:"source"`
 }
 
+// PermissionManifestCounts summarizes synchronization decisions and drift.
 type PermissionManifestCounts struct {
 	Created     int `json:"created"`
 	Updated     int `json:"updated"`
@@ -78,6 +88,7 @@ type PermissionManifestCounts struct {
 	Drift       int `json:"drift"`
 }
 
+// PermissionManifestResult is the validated response from a manifest command.
 type PermissionManifestResult struct {
 	Mode        PermissionManifestMode    `json:"mode"`
 	ManifestID  string                    `json:"manifestId"`
@@ -89,6 +100,7 @@ type PermissionManifestResult struct {
 	Counts      PermissionManifestCounts  `json:"counts"`
 }
 
+// PermissionManifestClientConfig configures explicit issuer and Portal endpoints and bounded command retries.
 type PermissionManifestClientConfig struct {
 	IssuerEndpoint    string
 	PortalAPIEndpoint string
@@ -102,6 +114,7 @@ type PermissionManifestClientConfig struct {
 	Observer          func(PermissionManifestObservation)
 }
 
+// PermissionManifestObservation reports a sanitized command outcome without tokens or response bodies.
 type PermissionManifestObservation struct {
 	Mode     PermissionManifestMode
 	Outcome  string
@@ -109,6 +122,7 @@ type PermissionManifestObservation struct {
 	Duration time.Duration
 }
 
+// PermissionManifestError exposes the manifest protocol's stable error details.
 type PermissionManifestError struct {
 	Status            int
 	Code              string
@@ -125,6 +139,7 @@ func (e *PermissionManifestError) Error() string {
 	return fmt.Sprintf("iam permission manifest: %s: HTTP %d: %s", e.Code, e.Status, e.Message)
 }
 
+// PermissionManifestClient executes structured manifests with an instance-local machine-token cache.
 type PermissionManifestClient struct {
 	issuerEndpoint    string
 	portalAPIEndpoint string
@@ -153,6 +168,7 @@ var (
 	retryableManifestStatus = map[int]bool{408: true, 429: true, 502: true, 503: true, 504: true}
 )
 
+// PreparePermissionManifest validates declarations and computes their sorted canonical fingerprint.
 func PreparePermissionManifest(manifest PermissionManifest, mode PermissionManifestMode) (PreparedPermissionManifest, error) {
 	if mode != PermissionManifestValidate && mode != PermissionManifestUpsert {
 		return PreparedPermissionManifest{}, errors.New("iam permission manifest: mode must be validate or upsert")
@@ -181,6 +197,7 @@ func PreparePermissionManifest(manifest PermissionManifest, mode PermissionManif
 	return PreparedPermissionManifest{Mode: mode, ManifestID: manifest.ManifestID, Revision: manifest.Revision, Fingerprint: sha256Hex(canonicalManifest(permissions)), Permissions: permissions}, nil
 }
 
+// PermissionDeclarationRevision computes a validated declaration's canonical digest.
 func PermissionDeclarationRevision(declaration PermissionManifestDeclaration) (string, error) {
 	if err := validateManifestDeclaration(declaration); err != nil {
 		return "", err
@@ -188,6 +205,7 @@ func PermissionDeclarationRevision(declaration PermissionManifestDeclaration) (s
 	return sha256Hex(canonicalDeclaration(declaration)), nil
 }
 
+// NewPermissionManifestClient validates explicit endpoints and bounded retry settings.
 func NewPermissionManifestClient(cfg PermissionManifestClientConfig) (*PermissionManifestClient, error) {
 	issuer := strings.TrimRight(strings.TrimSpace(cfg.IssuerEndpoint), "/")
 	portal := strings.TrimRight(strings.TrimSpace(cfg.PortalAPIEndpoint), "/")
@@ -221,6 +239,7 @@ func NewPermissionManifestClient(cfg PermissionManifestClientConfig) (*Permissio
 	return &PermissionManifestClient{issuerEndpoint: issuer, portalAPIEndpoint: portal, clientID: clientID, clientSecret: clientSecret, tokenSkew: tokenSkew, maxRetries: cfg.MaxRetries, maxRetryDelay: maxRetryDelay, http: httpClient, observer: cfg.Observer}, nil
 }
 
+// ValidatePermissionManifest checks a manifest without applying changes.
 func (c *PermissionManifestClient) ValidatePermissionManifest(ctx context.Context, manifest PermissionManifest) (*PermissionManifestResult, error) {
 	prepared, err := PreparePermissionManifest(manifest, PermissionManifestValidate)
 	if err != nil {
@@ -229,6 +248,7 @@ func (c *PermissionManifestClient) ValidatePermissionManifest(ctx context.Contex
 	return c.observed(ctx, prepared, "/open/v1/permission-manifests:sync", "")
 }
 
+// UpsertPermissionManifest applies a manifest using an explicit idempotency key.
 func (c *PermissionManifestClient) UpsertPermissionManifest(ctx context.Context, manifest PermissionManifest, idempotencyKey string) (*PermissionManifestResult, error) {
 	if err := requireManifestIdempotencyKey(idempotencyKey); err != nil {
 		return nil, err
@@ -259,6 +279,7 @@ func (c *PermissionManifestClient) observed(ctx context.Context, prepared Prepar
 	return result, err
 }
 
+// ClearPermissionManifestTokenCache invalidates the instance's cached machine token.
 func (c *PermissionManifestClient) ClearPermissionManifestTokenCache() {
 	c.mu.Lock()
 	c.token = nil
@@ -388,7 +409,8 @@ func (c *PermissionManifestClient) execute(ctx context.Context, request *http.Re
 			continue
 		}
 		body, err := io.ReadAll(io.LimitReader(resp.Body, 1024*1024+1))
-		resp.Body.Close()
+		// Preserve the bounded read/status outcome; release each attempt before cancellation.
+		_ = resp.Body.Close()
 		cancel()
 		if err != nil {
 			last = err
@@ -451,8 +473,10 @@ func (w permissionManifestResultWire) result() (PermissionManifestResult, error)
 	return PermissionManifestResult{Mode: *w.Mode, ManifestID: *w.ManifestID, Revision: *w.Revision, Fingerprint: *w.Fingerprint, Applied: *w.Applied, Results: *w.Results, Drift: *w.Drift, Counts: PermissionManifestCounts{Created: *w.Counts.Created, Updated: *w.Counts.Updated, Unchanged: *w.Counts.Unchanged, Resurrected: *w.Counts.Resurrected, Conflict: *w.Counts.Conflict, Drift: *w.Counts.Drift}}, nil
 }
 
+// PermissionManifestStartupMode selects whether and when a startup command is attempted.
 type PermissionManifestStartupMode int
 
+// Supported PermissionManifestStartupMode values.
 const (
 	PermissionManifestDisabled PermissionManifestStartupMode = iota
 	PermissionManifestCIValidate
@@ -460,14 +484,17 @@ const (
 	PermissionManifestDevelopmentStartup
 )
 
+// PermissionManifestFailurePolicy selects explicit failure handling for development startup.
 type PermissionManifestFailurePolicy int
 
+// Supported PermissionManifestFailurePolicy values.
 const (
 	PermissionManifestFailurePolicyUnset PermissionManifestFailurePolicy = iota
 	PermissionManifestFailFast
 	PermissionManifestContinue
 )
 
+// PermissionManifestStartupOptions configures startup mode, idempotency and continued-error reporting.
 type PermissionManifestStartupOptions struct {
 	Mode            PermissionManifestStartupMode
 	FailurePolicy   PermissionManifestFailurePolicy
@@ -475,6 +502,7 @@ type PermissionManifestStartupOptions struct {
 	OnContinueError func(PermissionManifestContinueEvent)
 }
 
+// PermissionManifestContinueEvent reports a sanitized development startup failure.
 type PermissionManifestContinueEvent struct {
 	Mode    string
 	Outcome string
@@ -482,12 +510,14 @@ type PermissionManifestContinueEvent struct {
 	Code    string
 }
 
+// PermissionManifestStartupResult records whether a startup command was attempted or continued.
 type PermissionManifestStartupResult struct {
 	NetworkAttempted bool
 	Continued        bool
 	Result           *PermissionManifestResult
 }
 
+// RunPermissionManifestStartup executes only the configured startup mode and explicit failure policy.
 func RunPermissionManifestStartup(ctx context.Context, client *PermissionManifestClient, manifest PermissionManifest, options PermissionManifestStartupOptions) (PermissionManifestStartupResult, error) {
 	if options.Mode == PermissionManifestDisabled {
 		return PermissionManifestStartupResult{NetworkAttempted: false}, nil
@@ -546,8 +576,8 @@ func validateManifestDeclaration(value PermissionManifestDeclaration) error {
 	return nil
 }
 
-func validateManifestText(value string, max int, field string) error {
-	if value == "" || utf16Length(value) > max || strings.TrimSpace(value) != value {
+func validateManifestText(value string, maxLength int, field string) error {
+	if value == "" || utf16Length(value) > maxLength || strings.TrimSpace(value) != value {
 		return fmt.Errorf("iam permission manifest: invalid %s", field)
 	}
 	for _, r := range value {
@@ -616,7 +646,8 @@ func appendJCSString(b *strings.Builder, value string) {
 		default:
 			if r <= 0x1f {
 				b.WriteString(`\u`)
-				b.WriteString(fmt.Sprintf("%04x", r))
+				// strings.Builder writes cannot fail.
+				_, _ = fmt.Fprintf(b, "%04x", r)
 			} else {
 				b.WriteRune(r)
 			}

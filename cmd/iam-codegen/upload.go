@@ -50,11 +50,12 @@ func runUpload(args []string) error {
 	if err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stdout, "mode=%s created=%d updated=%d unchanged=%d conflict=%d drift=%d\n", result.Mode, result.Counts.Created, result.Counts.Updated, result.Counts.Unchanged, result.Counts.Conflict, result.Counts.Drift)
-	return nil
+	_, err = fmt.Fprintf(os.Stdout, "mode=%s created=%d updated=%d unchanged=%d conflict=%d drift=%d\n", result.Mode, result.Counts.Created, result.Counts.Updated, result.Counts.Unchanged, result.Counts.Conflict, result.Counts.Drift)
+	return err
 }
 
 func loadPermissionManifest(path string) (iam.PermissionManifest, error) {
+	// #nosec G304 -- This local CLI intentionally reads the explicit operator-supplied --manifest path.
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return iam.PermissionManifest{}, err

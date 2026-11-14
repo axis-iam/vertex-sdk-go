@@ -42,12 +42,12 @@ func runGenerate(args []string) error {
 	if err != nil {
 		return err
 	}
-	if err := os.MkdirAll(filepath.Dir(*out), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(*out), 0o750); err != nil {
 		return err
 	}
-	if err := os.WriteFile(*out, source, 0o644); err != nil {
+	if err := os.WriteFile(*out, source, 0o600); err != nil {
 		return err
 	}
-	fmt.Fprintf(os.Stdout, "wrote %d permission(s) -> %s\n", len(definitions), *out)
-	return nil
+	_, err = fmt.Fprintf(os.Stdout, "wrote %d permission(s) -> %s\n", len(definitions), *out)
+	return err
 }

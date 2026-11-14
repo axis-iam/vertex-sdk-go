@@ -75,7 +75,7 @@ func TestSDK_Authenticate(t *testing.T) {
 	req.Header.Set("Authorization", "Bearer "+tok)
 	rec := httptest.NewRecorder()
 	reached := false
-	mw(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	mw(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
 		reached = true
 		u := authz.FromContext(r.Context())
 		if u == nil || u.Subject != "u1" {
@@ -340,7 +340,7 @@ func TestSDK_RequirePerm(t *testing.T) {
 	req := httptest.NewRequest("GET", "/", nil)
 	req.Header.Set("Authorization", "Bearer "+tok)
 	rec := httptest.NewRecorder()
-	auth(requireRead(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) }))).ServeHTTP(rec, req)
+	auth(requireRead(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(204) }))).ServeHTTP(rec, req)
 	if rec.Code != 204 {
 		t.Fatalf("want 204, got %d", rec.Code)
 	}
@@ -364,7 +364,7 @@ func TestSDK_RootGuardHelpers(t *testing.T) {
 	req := httptest.NewRequest("POST", "/danger", nil)
 	req.Header.Set("Authorization", "Bearer "+tok)
 	rec := httptest.NewRecorder()
-	auth(guard(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(204) }))).ServeHTTP(rec, req)
+	auth(guard(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { w.WriteHeader(204) }))).ServeHTTP(rec, req)
 	if rec.Code != 204 {
 		t.Fatalf("want 204, got %d", rec.Code)
 	}
@@ -411,7 +411,7 @@ func TestNew_MissingAudience(t *testing.T) {
 	for _, audience := range []string{"", " ", "\t\n"} {
 		t.Run(strings.ReplaceAll(audience, "\n", "newline"), func(t *testing.T) {
 			calls := 0
-			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			srv := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, _ *http.Request) {
 				calls++
 				t.Error("invalid config must fail before discovery")
 			}))
@@ -495,7 +495,7 @@ func TestSDK_PermissionClientIDSeparation(t *testing.T) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "Bearer "+token)
 	rec := httptest.NewRecorder()
-	sdk.Authenticate()(sdk.RequirePerm(authz.PermissionKey{Resource: "orders", Action: "read"})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+	sdk.Authenticate()(sdk.RequirePerm(authz.PermissionKey{Resource: "orders", Action: "read"})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(http.StatusNoContent)
 	}))).ServeHTTP(rec, req)
 	if rec.Code != http.StatusNoContent || !resolved {

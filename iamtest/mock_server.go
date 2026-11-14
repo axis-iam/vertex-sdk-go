@@ -93,7 +93,7 @@ func NewMockServer() (*MockServer, error) {
 		audienceFor:  "api://orders",
 	}
 	m.Server = httptest.NewServer(http.HandlerFunc(m.handle))
-	m.issuer = m.Server.URL
+	m.issuer = m.URL
 	return m, nil
 }
 

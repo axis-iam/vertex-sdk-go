@@ -31,6 +31,7 @@ type RegistrationGrantDelivery struct {
 	CreatedAt     string  `json:"createdAt"`
 }
 
+// UnmarshalJSON validates required delivery scalars, lifecycle values and bindings.
 func (delivery *RegistrationGrantDelivery) UnmarshalJSON(data []byte) error {
 	type plain RegistrationGrantDelivery
 	var value struct {
@@ -54,6 +55,7 @@ func (delivery *RegistrationGrantDelivery) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// UnmarshalJSON validates the required nonnegative grant version.
 func (grant *RegistrationGrant) UnmarshalJSON(data []byte) error {
 	type plain RegistrationGrant
 	var value struct {
@@ -68,6 +70,7 @@ func (grant *RegistrationGrant) UnmarshalJSON(data []byte) error {
 	return nil
 }
 
+// UnmarshalJSON validates explicit secret-delivery state and one-time proof invariants.
 func (created *CreatedRegistrationGrant) UnmarshalJSON(data []byte) error {
 	type plain CreatedRegistrationGrant
 	var value struct {

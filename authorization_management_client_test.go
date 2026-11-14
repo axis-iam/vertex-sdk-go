@@ -76,7 +76,7 @@ func TestAuthorizationResponseValidatorsFailClosed(t *testing.T) {
 		t.Fatal("assignment for another user accepted")
 	}
 	for _, page := range []AuthorizationPageMetadata{{Size: 0}, {Size: 101}, {Size: 1, TotalElements: 0, TotalPages: 0}, {Size: 1, Number: 1, TotalElements: 1, TotalPages: 1}, {Size: 2, TotalElements: 2, TotalPages: 1}} {
-		if err := validateAuthorizationPage(nil, 1, page); err == nil {
+		if err := validateAuthorizationPage(1, page); err == nil {
 			t.Fatalf("malformed page accepted: %+v", page)
 		}
 	}

@@ -26,7 +26,7 @@ type ResolvePermissionsResponse struct {
 
 // HttpResolver resolves role → permission mappings via the IAM /open/v1 API
 // with a local ristretto cache and singleflight deduplication.
-type HttpResolver struct {
+type HttpResolver struct { //nolint:revive // Keep the published public spelling; renaming would break callers.
 	client   ResolveClient
 	cache    *ristretto.Cache[string, []string]
 	sf       singleflight.Group
@@ -36,14 +36,14 @@ type HttpResolver struct {
 }
 
 // HttpResolverOptions configures an HttpResolver.
-type HttpResolverOptions struct {
+type HttpResolverOptions struct { //nolint:revive // Keep the options spelling paired with the published HttpResolver API.
 	TTL        time.Duration
 	MaxEntries int64
 	FailOpen   bool
 }
 
 // NewHttpResolver wires up a resolver backed by ristretto.
-func NewHttpResolver(client ResolveClient, opts HttpResolverOptions) (*HttpResolver, error) {
+func NewHttpResolver(client ResolveClient, opts HttpResolverOptions) (*HttpResolver, error) { //nolint:revive // Keep the published constructor name without compatibility aliases.
 	if client == nil {
 		return nil, errors.New("authz: nil resolve client")
 	}

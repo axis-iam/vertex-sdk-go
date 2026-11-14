@@ -3,7 +3,6 @@ package iamjwt
 import (
 	"context"
 	"errors"
-	"fmt"
 	"strings"
 	"time"
 
@@ -59,14 +58,14 @@ func NewVerifier(opts VerifierOptions) (*Verifier, error) {
 func (v *Verifier) Verify(ctx context.Context, token string) (*Claims, error) {
 	parsed, err := jwt.ParseSigned(token, v.allowedAlgorithms)
 	if err != nil {
-		return nil, fmt.Errorf("iamjwt: parse: %w", err)
+		return nil, verificationError(ErrInvalidToken, err)
 	}
 	if len(parsed.Headers) == 0 {
-		return nil, errors.New("iamjwt: missing JWT header")
+		return nil, verificationError(ErrInvalidToken, errors.New("missing JWT header"))
 	}
 	kid := parsed.Headers[0].KeyID
 	if kid == "" {
-		return nil, errors.New("iamjwt: missing kid header")
+		return nil, verificationError(ErrInvalidToken, errors.New("missing kid header"))
 	}
 	key, err := v.jwks.KeyByID(ctx, kid)
 	if err != nil {
@@ -75,7 +74,7 @@ func (v *Verifier) Verify(ctx context.Context, token string) (*Claims, error) {
 
 	var c Claims
 	if err := parsed.Claims(key, &c); err != nil {
-		return nil, fmt.Errorf("iamjwt: verify signature: %w", err)
+		return nil, verificationError(ErrInvalidToken, err)
 	}
 
 	expected := jwt.Expected{
@@ -83,8 +82,8 @@ func (v *Verifier) Verify(ctx context.Context, token string) (*Claims, error) {
 		Time:        time.Now(),
 		AnyAudience: jwt.Audience{v.expectedAudience},
 	}
-	if err := c.Claims.ValidateWithLeeway(expected, v.leeway); err != nil {
-		return nil, fmt.Errorf("iamjwt: validate claims: %w", err)
+	if err := c.ValidateWithLeeway(expected, v.leeway); err != nil {
+		return nil, verificationError(ErrInvalidToken, err)
 	}
 
 	return &c, nil

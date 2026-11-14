@@ -125,7 +125,7 @@ func TestAccountSecurityRecoveryRemaining(t *testing.T) {
 	})
 	t.Run("known-fields-errors-and-explicit-bearer", func(t *testing.T) {
 		for _, body := range []string{`{}`, `{"remaining":null}`, `{"remaining":true}`, `{"remaining":-1}`, `{"remaining":1.5}`, `{"remaining":9223372036854775808}`, `{"remaining":1,"remaining":2}`, `{"remaining":1,"codes":["not-a-live-code"]}`} {
-			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { io.WriteString(w, body) }))
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) { io.WriteString(w, body) }))
 			c, _ := iam.NewClient(&iam.SDKConfig{Endpoint: server.URL, ClientID: "client", ClientSecret: "fixture-secret"})
 			_, err := c.GetRecoveryCodesRemaining(context.Background(), "owner-a")
 			var protocol *iam.AccountSecurityProtocolError
@@ -136,7 +136,7 @@ func TestAccountSecurityRecoveryRemaining(t *testing.T) {
 			server.Close()
 		}
 		var received atomic.Int64
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			received.Add(1)
 			w.Header().Set("Retry-After", "2")
 			w.WriteHeader(429)

@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
 	"github.com/axis-iam/vertex-sdk-go/authz"
@@ -42,7 +43,11 @@ func Auth(cfg AuthConfig) func(http.Handler) http.Handler {
 			}
 			claims, err := cfg.Verifier.Verify(r.Context(), token)
 			if err != nil {
-				cfg.Responder(w, r, http.StatusUnauthorized, "UNAUTHORIZED", err.Error())
+				if errors.Is(err, iamjwt.ErrJWKSFetch) || errors.Is(err, iamjwt.ErrJWKSParse) {
+					cfg.Responder(w, r, http.StatusServiceUnavailable, "AUTH_DEPENDENCY_UNAVAILABLE", "authentication service unavailable")
+				} else {
+					cfg.Responder(w, r, http.StatusUnauthorized, "UNAUTHORIZED", "invalid bearer token")
+				}
 				return
 			}
 			clientID := cfg.ClientID
