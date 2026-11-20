@@ -1,0 +1,13 @@
+{
+  "name": "vertex-go-bff-react-example",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "vite build" },
+  "dependencies": {
+    "@axis-iam/vertex": "0.1.0",
+    "@axis-iam/vertex-react": "0.1.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
+  },
+  "devDependencies": { "vite": "^6.0.0" }
+}

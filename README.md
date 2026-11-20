@@ -57,7 +57,13 @@ if err != nil || !result.NetworkAttempted { log.Fatal("permission manifest deplo
 
 Create one business Application for your product, then create the ApplicationClients it needs. Go server apps and `iam-codegen` use a `WEB` or `M2M` confidential ApplicationClient. `ClientID` is `ApplicationClient.clientId`, and `ClientSecret` is that confidential client's secret. Browser or native `SPA`/`NATIVE` public clients have no secret and must not be used for this server SDK or permission sync/upload.
 
-This Go SDK is a resource-server and management-call SDK. It does not implement interactive WEB browser login. If a Go WEB application implements Authorization Code login itself, Axis Vertex requires both confidential client authentication at token exchange and S256 PKCE (`code_challenge_method=S256` with a matching `code_verifier` stored with server-side OAuth `state`).
+The optional `websession` package implements interactive WEB login in explicit
+`server_session` mode. It keeps tokens, client authentication and S256 PKCE on
+the application backend and provides Hosted/custom routes, bounded memory and
+injectable atomic host storage. Existing resource-server/Bearer behavior remains
+available. See [server sessions](docs/websession.md) and the
+[Go + React example](examples/bff-react/README.md). This source candidate is not
+a new published tag; consume its reviewed module archives until release.
 
 ## Install
 

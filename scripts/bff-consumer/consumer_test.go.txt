@@ -1,0 +1,361 @@
+// This template is copied into disposable external modules by verify-bff-consumers.
+// It imports only public SDK APIs from the produced module archives.
+package consumer
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"errors"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/axis-iam/vertex-sdk-go/authz"
+	"github.com/axis-iam/vertex-sdk-go/websession"
+)
+
+const app = "019b0000-0000-7000-8000-000000000001"
+const user = "019b0000-0000-7000-8000-000000000002"
+const tx = "019b0000-0000-7000-8000-000000000003"
+
+type nativeHost struct {
+	mu          sync.Mutex
+	id          string
+	version     uint64
+	handle      string
+	unrelated   string
+	failReplace bool
+}
+
+func (*nativeHost) AtomicAuthentication() bool { return true }
+func (h *nativeHost) ReadAuthentication(ctx context.Context, r *http.Request) (websession.HostSnapshot, error) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	c, err := r.Cookie("host-session")
+	if errors.Is(err, http.ErrNoCookie) {
+		return websession.HostSnapshot{}, nil
+	}
+	if err != nil {
+		return websession.HostSnapshot{}, err
+	}
+	if c.Value != h.id {
+		return websession.HostSnapshot{}, nil
+	}
+	return websession.HostSnapshot{NativeID: h.id, Version: h.version, Handle: h.handle}, nil
+}
+func (h *nativeHost) ReplaceAuthentication(ctx context.Context, w http.ResponseWriter, r *http.Request, old websession.HostSnapshot, handle string, expires time.Time) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.failReplace {
+		return websession.ErrUnavailable
+	}
+	if old.NativeID != h.id || old.Version != h.version || old.Handle != h.handle {
+		return websession.ErrConflict
+	}
+	h.version++
+	h.id = strings.Repeat("h", 43) + string(rune('a'+h.version)) // fixture-only native ID
+	h.handle = handle
+	http.SetCookie(w, &http.Cookie{Name: "host-session", Value: h.id, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode})
+	return nil
+}
+func (h *nativeHost) ClearAuthenticationCookie(w http.ResponseWriter, r *http.Request) {
+	http.SetCookie(w, &http.Cookie{Name: "host-session", Value: "", Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: -1, Expires: time.Unix(1, 0)})
+}
+func (h *nativeHost) lateSave(old websession.HostSnapshot, unrelated string) error {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	// Host automatic save may update its own data, but authentication generation
+	// cannot be restored from an old request. No SDK token is stored in that bag.
+	h.unrelated = unrelated
+	if old.NativeID != h.id || old.Version != h.version {
+		return websession.ErrConflict
+	}
+	h.handle = old.Handle
+	return nil
+}
+
+func TestBFFConsumer(t *testing.T) {
+	for _, native := range []bool{false, true} {
+		name := "standalone"
+		if native {
+			name = "native-host"
+		}
+		t.Run(name, func(t *testing.T) {
+			var fixtureMu sync.Mutex
+			var txState, state string
+			var validityCalls int
+			var businessWrites int
+			origin := "http://127.0.0.1:33391"
+			iam := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				write := func(x any) { _ = json.NewEncoder(w).Encode(x) }
+				switch r.URL.Path {
+				case "/.well-known/openid-configuration":
+					write(map[string]any{"issuer": "http://" + r.Host, "jwks_uri": "http://" + r.Host + "/jwks", "id_token_signing_alg_values_supported": []string{"RS256"}})
+				case "/oauth2/token":
+					client, secret, ok := r.BasicAuth()
+					if !ok || client != "consumer-web" || secret != "consumer-fixture" {
+						w.WriteHeader(401)
+						return
+					}
+					_ = r.ParseForm()
+					if r.Form.Get("code") == "" || r.Form.Get("code_verifier") == "" {
+						w.WriteHeader(400)
+						return
+					}
+					write(map[string]any{"access_token": "consumer-access", "token_type": "Bearer", "expires_in": 120})
+				case "/api/v1/auth/me":
+					write(map[string]any{"id": user, "email": nil, "username": nil, "status": "ACTIVE", "emailVerified": true, "metadata": map[string]any{},
+						"authenticationContext": map[string]any{"subjectType": "USER", "applicationId": app, "clientId": "consumer-web", "sessionId": "consumer-session", "workspaceId": nil, "workspaceSelectionRequired": false, "organizationId": nil, "organizationSlug": nil, "organizationRole": nil, "authTime": nil, "authenticationMethods": []string{"PASSWORD"}, "assuranceLevel": nil, "impersonation": nil}})
+				case "/api/v1/auth/me/permissions":
+					write(map[string]any{"applicationId": app, "organizationId": nil, "roles": []string{"reader"}, "permissions": []string{"documents:read"}})
+				case "/api/v1/auth/session/validity":
+					fixtureMu.Lock()
+					validityCalls++
+					fixtureMu.Unlock()
+					write(map[string]any{"sessionId": "consumer-session", "applicationId": app, "clientId": "consumer-web", "expiresAt": time.Now().Add(time.Hour), "idleExpiresAt": time.Now().Add(time.Hour), "accessExpiresAt": time.Now().Add(time.Minute)})
+				case "/api/v1/auth/logout":
+					w.WriteHeader(204)
+				case "/api/v1/auth/transactions":
+					var body map[string]any
+					_ = json.NewDecoder(r.Body).Decode(&body)
+					fixtureMu.Lock()
+					state, _ = body["state"].(string)
+					txState = "AUTHENTICATING"
+					fixtureMu.Unlock()
+					w.WriteHeader(201)
+					write(map[string]any{"transactionId": tx, "controlSecret": "consumer-control", "expiresAt": time.Now().Add(5 * time.Minute), "nextAction": "authenticate"})
+				case "/api/v1/auth/transactions/" + tx + "/authenticate":
+					if r.Header.Get("Authentication-Transaction") != "consumer-control" {
+						w.WriteHeader(401)
+						return
+					}
+					fixtureMu.Lock()
+					txState = "AUTHENTICATED"
+					fixtureMu.Unlock()
+					write(map[string]any{"transactionId": tx, "state": "AUTHENTICATED", "expiresAt": time.Now().Add(5 * time.Minute), "nextAction": "complete"})
+				case "/api/v1/auth/transactions/" + tx + "/complete":
+					fixtureMu.Lock()
+					defer fixtureMu.Unlock()
+					if txState != "AUTHENTICATED" || r.Header.Get("Idempotency-Key") == "" {
+						w.WriteHeader(400)
+						return
+					}
+					write(map[string]any{"kind": "authorization_code", "code": "custom-consumer-code", "state": state, "expiresIn": 60})
+				default:
+					http.NotFound(w, r)
+				}
+			}))
+			defer iam.Close()
+			store, err := websession.NewMemory(websession.MemoryOptions{})
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer func() { _ = store.Close() }()
+			host := &nativeHost{unrelated: "cart"}
+			cfg := websession.Config{Issuer: iam.URL, Audience: "api://consumer", ClientID: "consumer-web", ClientSecret: "consumer-fixture",
+				Origin: origin, CallbackURL: origin + "/auth/callback", Scopes: []string{"profile"}, ReturnTo: "/", AllowedReturnTo: []string{"/"}, Provider: store, AllowLoopbackHTTP: true}
+			if native {
+				cfg.Binding, err = websession.NewHostBinding(host)
+				if err != nil {
+					t.Fatal(err)
+				}
+			}
+			service, err := websession.New(context.Background(), cfg)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// mount is implemented using the real native framework in mount_test.go.
+			router := mount(service, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				v := websession.FromContext(r.Context())
+				u := authz.FromContext(r.Context())
+				if v == nil || u == nil || v.Profile.ID != user {
+					t.Error("native request context missing")
+					w.WriteHeader(500)
+					return
+				}
+				if !u.HasPermission("documents", "read") || u.HasPermission("documents", "write") {
+					t.Error("permission boundary")
+				}
+				_ = websession.FromContext(r.Context())
+				if r.URL.Path == "/denied" {
+					w.WriteHeader(403)
+					return
+				}
+				if r.URL.Path == "/business-write" {
+					fixtureMu.Lock()
+					businessWrites++
+					fixtureMu.Unlock()
+				}
+				w.WriteHeader(204)
+			}))
+			var cookie *http.Cookie
+			call := func(method, path, body, csrf string) *httptest.ResponseRecorder {
+				req := httptest.NewRequest(method, origin+path, strings.NewReader(body))
+				if cookie != nil {
+					req.AddCookie(cookie)
+				}
+				if method == "POST" || method == "PATCH" || method == "DELETE" {
+					req.Header.Set("Content-Type", "application/json")
+					req.Header.Set("Origin", origin)
+					req.Header.Set("X-CSRF-Token", csrf)
+				}
+				out := httptest.NewRecorder()
+				router.ServeHTTP(out, req)
+				if cookies := out.Result().Cookies(); len(cookies) > 0 {
+					if len(cookies) != 1 {
+						t.Fatal("multiple Cookie owners")
+					}
+					cookie = cookies[0]
+					if cookie.MaxAge < 0 {
+						cookie = nil
+					}
+				}
+				return out
+			}
+			parse := func(out *httptest.ResponseRecorder) websession.View {
+				v, err := websession.ParseView(out.Body.Bytes())
+				if err != nil {
+					t.Fatalf("view HTTP %d %s: %v", out.Code, out.Body.String(), err)
+				}
+				return *v
+			}
+			if out := call("GET", "/business", "", ""); out.Code != 401 {
+				t.Fatal("anonymous business", out.Code)
+			}
+			if out := call("GET", "/auth/login", "", ""); out.Code != 401 {
+				t.Fatal("GET missing binding", out.Code)
+			}
+			v := parse(call("GET", "/auth/session/bootstrap", "", ""))
+			if out := call("POST", "/auth/session/login", "{}", "wrong"); out.Code != 403 {
+				t.Fatal("CSRF", out.Code)
+			}
+			nav := call("GET", "/auth/login", "", "")
+			if nav.Code != 302 {
+				t.Fatal("Hosted route", nav.Code, nav.Body.String())
+			}
+			target, _ := url.Parse(nav.Header().Get("Location"))
+			callback := "/auth/callback?" + url.Values{"code": {"hosted-consumer-code"}, "state": {target.Query().Get("state")}}.Encode()
+			if out := call("GET", callback, "", ""); out.Code != 302 || out.Header().Get("Location") != "/" {
+				t.Fatal("callback", out.Code, out.Body.String())
+			}
+			v = parse(call("GET", "/auth/session", "", ""))
+			fixtureMu.Lock()
+			before := validityCalls
+			fixtureMu.Unlock()
+			if out := call("GET", "/business", "", ""); out.Code != 204 {
+				t.Fatal("business", out.Code, out.Body.String())
+			}
+			fixtureMu.Lock()
+			after := validityCalls
+			fixtureMu.Unlock()
+			if after != before+1 {
+				t.Fatal("getter repeated network")
+			}
+			fixtureMu.Lock()
+			writesBefore := businessWrites
+			fixtureMu.Unlock()
+			for _, method := range []string{"POST", "PATCH", "DELETE"} {
+				if out := call(method, "/business-write", `{}`, v.CSRFToken); out.Code != 204 {
+					t.Fatalf("valid %s business write: %d %s", method, out.Code, out.Body.String())
+				}
+			}
+			fixtureMu.Lock()
+			if businessWrites != writesBefore+3 {
+				t.Fatalf("valid writes=%d", businessWrites-writesBefore)
+			}
+			fixtureMu.Unlock()
+			for _, tc := range []struct {
+				name, origin, csrf string
+			}{
+				{"missing-headers", "", ""},
+				{"foreign-origin", "http://foreign.test", v.CSRFToken},
+				{"wrong-csrf", origin, strings.Repeat("x", 43)},
+			} {
+				t.Run("business-csrf-"+tc.name, func(t *testing.T) {
+					req := httptest.NewRequest("POST", origin+"/business-write", strings.NewReader(`{}`))
+					req.AddCookie(cookie)
+					req.Header.Set("Content-Type", "application/json")
+					if tc.origin != "" {
+						req.Header.Set("Origin", tc.origin)
+					}
+					if tc.csrf != "" {
+						req.Header.Set("X-CSRF-Token", tc.csrf)
+					}
+					rec := httptest.NewRecorder()
+					router.ServeHTTP(rec, req)
+					if rec.Code != 403 {
+						t.Fatalf("rejected write status=%d body=%s", rec.Code, rec.Body.String())
+					}
+					fixtureMu.Lock()
+					defer fixtureMu.Unlock()
+					if businessWrites != writesBefore+3 {
+						t.Fatalf("rejected write executed: count=%d", businessWrites)
+					}
+				})
+			}
+			if out := call("GET", "/denied", "", ""); out.Code != 403 {
+				t.Fatal("permission native route")
+			}
+			var stale websession.HostSnapshot
+			if native {
+				req := httptest.NewRequest("GET", origin, nil)
+				req.AddCookie(cookie)
+				stale, _ = host.ReadAuthentication(context.Background(), req)
+			}
+			if out := call("POST", "/auth/session/logout", "{}", v.CSRFToken); out.Code != 200 {
+				t.Fatal("logout", out.Code, out.Body.String())
+			}
+			if native {
+				if err := host.lateSave(stale, "cart-after-save"); !errors.Is(err, websession.ErrConflict) {
+					t.Fatal("auto-save resurrected")
+				}
+				if host.unrelated != "cart-after-save" {
+					t.Fatal("unrelated state lost")
+				}
+			}
+			if out := call("GET", "/business", "", ""); out.Code != 401 {
+				t.Fatal("logout business", out.Code)
+			}
+			// Same host, new custom login generation; stale A cannot replace B.
+			v = parse(call("GET", "/auth/session/bootstrap", "", ""))
+			v = parse(call("POST", "/auth/session/login", "{}", v.CSRFToken))
+			v = parse(call("POST", "/auth/session/login/authenticate", `{"method":"PASSWORD","identifier":{"kind":"EMAIL","value":"reader@example.test"},"password":"fixture-password"}`, v.CSRFToken))
+			if v.Profile != nil || v.NextAction != "complete" {
+				t.Fatal("proof mistaken for session")
+			}
+			out := call("POST", "/auth/session/login/complete", "{}", v.CSRFToken)
+			v = parse(out)
+			if v.Profile == nil {
+				t.Fatal("custom login")
+			}
+			if native {
+				if err := host.lateSave(stale, "retained"); !errors.Is(err, websession.ErrConflict) {
+					t.Fatal("account-switch save")
+				}
+				if out := call("GET", "/business", "", ""); out.Code != 204 {
+					t.Fatal("stale A replaced B")
+				}
+				host.failReplace = true
+				failed := call("POST", "/auth/session/logout", "{}", v.CSRFToken)
+				if failed.Code != 503 || !strings.Contains(failed.Body.String(), `"local":"UNCONFIRMED"`) ||
+					!strings.Contains(failed.Body.String(), `"cookie":"CLEARED"`) || failed.Result().Cookies()[0].MaxAge != -1 {
+					t.Fatal("native failure falsely confirmed", failed.Code, failed.Body.String())
+				}
+			}
+			for _, secret := range []string{"consumer-access", "consumer-control", "custom-consumer-code", "access_token", "id_token", "code_verifier"} {
+				if bytes.Contains(out.Body.Bytes(), []byte(secret)) {
+					t.Fatal("browser secret leak", secret)
+				}
+			}
+			if websession.FromContext(context.Background()) != nil {
+				t.Fatal("context leaked")
+			}
+		})
+	}
+}
